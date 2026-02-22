@@ -1,16 +1,15 @@
 /**
- * Unit tests for ws-daemon.js logic — message handling, dedup, escapeHtml, blind cache.
+ * Unit tests for ws-daemon.js logic — message handling, dedup, escapeHtml.
  * Does NOT test actual WS/HTTP connections (that's integration).
  *
- * Tests: DAEMON-DEDUP-001..003, DAEMON-ESCAPE-001..002, DAEMON-CACHE-001..003
+ * Tests: DAEMON-DEDUP-001..003, DAEMON-ESCAPE-001..002
  */
 
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, blindMessageCache, processedMessageIds, getGuardrailState, resetGuardrailState } from '../../scripts/ws-daemon.js';
+import { escapeHtml, processedMessageIds, getGuardrailState, resetGuardrailState } from '../../scripts/ws-daemon.js';
 
 before(() => {
-  blindMessageCache.clear();
   processedMessageIds.clear();
 });
 
@@ -43,26 +42,7 @@ describe('Deduplication', () => {
   });
 });
 
-describe('Blind message cache', () => {
-  it('DAEMON-CACHE-001: stores and retrieves message', () => {
-    const id = 'show_msg-100';
-    blindMessageCache.set(id, { text: 'hello', from: 'alice', ts: Date.now() });
-    const cached = blindMessageCache.get(id);
-    assert.equal(cached.text, 'hello');
-    assert.equal(cached.from, 'alice');
-  });
-
-  it('DAEMON-CACHE-002: returns undefined for expired/missing', () => {
-    assert.equal(blindMessageCache.get('show_nonexistent'), undefined);
-  });
-
-  it('DAEMON-CACHE-003: delete removes entry', () => {
-    blindMessageCache.set('show_temp', { text: 'temp', from: 'bob', ts: Date.now() });
-    blindMessageCache.delete('show_temp');
-    assert.equal(blindMessageCache.get('show_temp'), undefined);
-  });
-
-  // AUDIT-5: processedMessageIds grows and is exported
+describe('Deduplication — processedMessageIds', () => {
   it('processedMessageIds is a Set that tracks dedup keys', () => {
     processedMessageIds.clear();
     processedMessageIds.add('msg-1:trusted');
