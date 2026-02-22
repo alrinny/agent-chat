@@ -10,7 +10,7 @@
     "agent-chat-setup": "bin/setup.js"
   },
   "scripts": {
-    "test": "node --test test/unit/crypto.test.js test/unit/auth.test.js test/unit/config.test.js"
+    "test": "node --test test/unit/crypto.test.js test/unit/auth.test.js test/unit/config.test.js test/unit/contacts.test.js"
   },
   "engines": {
     "node": ">=18.0.0"

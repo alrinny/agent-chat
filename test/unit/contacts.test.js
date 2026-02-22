@@ -1,107 +1,116 @@
 /**
- * Contacts management tests — add, remove, list, trust level, persistence.
- * From test-plan.md sections 4.3, 7 (config)
+ * Unit tests for lib/contacts.js
+ * Tests: CONTACTS-LOAD-001..003, CONTACTS-ADD-001..003, CONTACTS-REMOVE-001..002,
+ *        CONTACTS-LIST-001..002, CONTACTS-GET-001..002
  */
 
-const { describe, it } = require('node:test');
-const assert = require('node:assert/strict');
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdirSync, rmSync, existsSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import {
+  loadContacts, saveContacts, addContact,
+  removeContact, getContact, listContacts
+} from '../../lib/contacts.js';
 
-// Contacts store simulation
-class ContactStore {
-  constructor() { this.contacts = new Map(); }
-  add(handle, label, trust = 'blind') {
-    this.contacts.set(handle, { handle, label, trust });
-  }
-  remove(handle) { this.contacts.delete(handle); }
-  get(handle) { return this.contacts.get(handle) || null; }
-  list() { return [...this.contacts.values()]; }
-  setTrust(handle, trust) {
-    const c = this.contacts.get(handle);
-    if (c) c.trust = trust;
-  }
-}
+const TEST_DIR = join(import.meta.dirname, '..', '..', '.test-contacts-' + process.pid);
 
-describe('Contacts Management', () => {
-  it('add contact with default trust=blind', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice');
-    assert.equal(store.get('alice').trust, 'blind');
+before(() => {
+  mkdirSync(TEST_DIR, { recursive: true });
+});
+
+after(() => {
+  rmSync(TEST_DIR, { recursive: true, force: true });
+});
+
+describe('loadContacts', () => {
+  it('CONTACTS-LOAD-001: returns empty object when file missing', () => {
+    const contacts = loadContacts(TEST_DIR + '-nonexistent');
+    assert.deepStrictEqual(contacts, {});
   });
 
-  it('add contact with explicit trust', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice', 'trusted');
-    assert.equal(store.get('alice').trust, 'trusted');
+  it('CONTACTS-LOAD-002: returns empty object for invalid JSON', () => {
+    const dir = TEST_DIR + '-badjson';
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'contacts.json'), 'not json');
+    const contacts = loadContacts(dir);
+    assert.deepStrictEqual(contacts, {});
+    rmSync(dir, { recursive: true, force: true });
   });
 
-  it('remove contact', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice');
-    store.remove('alice');
-    assert.equal(store.get('alice'), null);
+  it('CONTACTS-LOAD-003: loads valid contacts', () => {
+    saveContacts(TEST_DIR, { alice: { label: 'Alice', notes: '' } });
+    const contacts = loadContacts(TEST_DIR);
+    assert.equal(contacts.alice.label, 'Alice');
+  });
+});
+
+describe('addContact', () => {
+  it('CONTACTS-ADD-001: adds new contact', () => {
+    const result = addContact(TEST_DIR, 'bob', 'Bob');
+    assert.equal(result.label, 'Bob');
+    assert.equal(result.notes, '');
+    const loaded = loadContacts(TEST_DIR);
+    assert.equal(loaded.bob.label, 'Bob');
   });
 
-  it('list contacts', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice');
-    store.add('bob', 'Bob');
-    assert.equal(store.list().length, 2);
+  it('CONTACTS-ADD-002: updates existing contact', () => {
+    addContact(TEST_DIR, 'bob', 'Bobby', 'updated');
+    const loaded = loadContacts(TEST_DIR);
+    assert.equal(loaded.bob.label, 'Bobby');
+    assert.equal(loaded.bob.notes, 'updated');
   });
 
-  it('update trust level', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice', 'blind');
-    store.setTrust('alice', 'trusted');
-    assert.equal(store.get('alice').trust, 'trusted');
+  it('CONTACTS-ADD-003: preserves other contacts', () => {
+    addContact(TEST_DIR, 'charlie', 'Charlie');
+    const loaded = loadContacts(TEST_DIR);
+    assert.ok(loaded.bob);
+    assert.ok(loaded.charlie);
+    assert.ok(loaded.alice);
+  });
+});
+
+describe('removeContact', () => {
+  it('CONTACTS-REMOVE-001: removes existing contact', () => {
+    const existed = removeContact(TEST_DIR, 'charlie');
+    assert.equal(existed, true);
+    const loaded = loadContacts(TEST_DIR);
+    assert.equal(loaded.charlie, undefined);
   });
 
-  it('get nonexistent contact → null', () => {
-    const store = new ContactStore();
-    assert.equal(store.get('nobody'), null);
+  it('CONTACTS-REMOVE-002: returns false for non-existent contact', () => {
+    const existed = removeContact(TEST_DIR, 'nobody');
+    assert.equal(existed, false);
+  });
+});
+
+describe('getContact', () => {
+  it('CONTACTS-GET-001: returns contact data', () => {
+    const contact = getContact(TEST_DIR, 'bob');
+    assert.equal(contact.label, 'Bobby');
   });
 
-  it('duplicate add → overwrites', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice 1');
-    store.add('alice', 'Alice 2');
-    assert.equal(store.get('alice').label, 'Alice 2');
-    assert.equal(store.list().length, 1);
+  it('CONTACTS-GET-002: returns null for unknown handle', () => {
+    const contact = getContact(TEST_DIR, 'unknown');
+    assert.equal(contact, null);
+  });
+});
+
+describe('listContacts', () => {
+  it('CONTACTS-LIST-001: returns all contacts with handle field', () => {
+    const list = listContacts(TEST_DIR);
+    assert.ok(Array.isArray(list));
+    assert.ok(list.length >= 2);
+    const handles = list.map(c => c.handle);
+    assert.ok(handles.includes('bob'));
+    assert.ok(handles.includes('alice'));
   });
 
-  it('label with spaces', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice from Work');
-    assert.equal(store.get('alice').label, 'Alice from Work');
-  });
-
-  it('empty label', () => {
-    const store = new ContactStore();
-    store.add('alice', '');
-    assert.equal(store.get('alice').label, '');
-  });
-
-  it('trust values: trusted, blind, block', () => {
-    const store = new ContactStore();
-    store.add('a', 'A', 'trusted');
-    store.add('b', 'B', 'blind');
-    store.add('c', 'C', 'block');
-    assert.equal(store.get('a').trust, 'trusted');
-    assert.equal(store.get('b').trust, 'blind');
-    assert.equal(store.get('c').trust, 'block');
-  });
-
-  it('contacts persistence format: JSON', () => {
-    const store = new ContactStore();
-    store.add('alice', 'Alice', 'trusted');
-    const json = JSON.stringify(store.list());
-    const parsed = JSON.parse(json);
-    assert.equal(parsed[0].handle, 'alice');
-    assert.equal(parsed[0].trust, 'trusted');
-  });
-
-  it('contacts file path: ~/.agent-chat/contacts.json', () => {
-    const home = '/Users/test';
-    const path = `${home}/.agent-chat/contacts.json`;
-    assert.ok(path.endsWith('contacts.json'));
+  it('CONTACTS-LIST-002: empty dir returns empty array', () => {
+    const emptyDir = TEST_DIR + '-empty-list';
+    mkdirSync(emptyDir, { recursive: true });
+    const list = listContacts(emptyDir);
+    assert.deepStrictEqual(list, []);
+    rmSync(emptyDir, { recursive: true, force: true });
   });
 });
