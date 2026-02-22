@@ -49,6 +49,18 @@ function loadKeysFromDir(configDir) {
   };
 }
 
+// --- Handle + keys for authenticated commands ---
+
+function resolveHandleAndKeys() {
+  const handle = process.env.AGENT_CHAT_HANDLE || (() => {
+    const dir = findConfigDir();
+    return loadConfig(dir).handle;
+  })();
+  const configDir = findConfigDir(handle);
+  const keys = loadKeysFromDir(configDir);
+  return { handle, keys };
+}
+
 // --- Relay communication ---
 
 async function relayPost(path, body, handle, ed25519PrivateKey) {
@@ -104,13 +116,7 @@ switch (command) {
     const message = messageParts.join(' ');
     if (!to || !message) { console.error('Usage: send.js send <handle> "message"'); process.exit(1); }
 
-    const handle = process.env.AGENT_CHAT_HANDLE || (() => {
-      const dir = findConfigDir();
-      const config = loadConfig(dir);
-      return config.handle;
-    })();
-    const configDir = findConfigDir(handle);
-    const keys = loadKeysFromDir(configDir);
+    const { handle, keys } = resolveHandleAndKeys();
 
     // Get handle info (authenticated)
     const handleInfo = await relayGet(`/handle/info/${to}`, handle, keys.ed25519PrivateKey);
@@ -157,13 +163,7 @@ switch (command) {
   }
 
   case 'status': {
-    const handle = process.env.AGENT_CHAT_HANDLE || (() => {
-      const dir = findConfigDir();
-      const config = loadConfig(dir);
-      return config.handle;
-    })();
-    const configDir = findConfigDir(handle);
-    const keys = loadKeysFromDir(configDir);
+    const { handle, keys } = resolveHandleAndKeys();
 
     console.log(`Handle: @${handle}`);
     console.log(`Ed25519: ${keys.ed25519PublicKey.slice(0, 16)}...`);
@@ -178,9 +178,7 @@ switch (command) {
     const write = args.includes('--write') ? args[args.indexOf('--write') + 1] : 'deny';
     const read = args.includes('--read') ? args[args.indexOf('--read') + 1] : 'blind';
 
-    const handle = process.env.AGENT_CHAT_HANDLE || (() => { const d = findConfigDir(); return loadConfig(d).handle; })();
-    const configDir = findConfigDir(handle);
-    const keys = loadKeysFromDir(configDir);
+    const { handle, keys } = resolveHandleAndKeys();
 
     const result = await relayPost('/handle/create', { name, defaultWrite: write, defaultRead: read }, handle, keys.ed25519PrivateKey);
     console.log(JSON.stringify(result));
@@ -193,9 +191,7 @@ switch (command) {
     const write = args.includes('--write') ? args[args.indexOf('--write') + 1] : undefined;
     const read = args.includes('--read') ? args[args.indexOf('--read') + 1] : undefined;
 
-    const handle = process.env.AGENT_CHAT_HANDLE || (() => { const d = findConfigDir(); return loadConfig(d).handle; })();
-    const configDir = findConfigDir(handle);
-    const keys = loadKeysFromDir(configDir);
+    const { handle, keys } = resolveHandleAndKeys();
 
     const body = { handle: hName, agent };
     if (write) body.ownerWrite = write;
@@ -207,9 +203,7 @@ switch (command) {
 
   case 'handle-join': {
     if (!args[0]) { console.error('Usage: send.js handle-join <handle>'); process.exit(1); }
-    const handle = process.env.AGENT_CHAT_HANDLE || (() => { const d = findConfigDir(); return loadConfig(d).handle; })();
-    const configDir = findConfigDir(handle);
-    const keys = loadKeysFromDir(configDir);
+    const { handle, keys } = resolveHandleAndKeys();
     const result = await relayPost('/handle/join', { handle: args[0] }, handle, keys.ed25519PrivateKey);
     console.log(JSON.stringify(result));
     break;
@@ -217,9 +211,7 @@ switch (command) {
 
   case 'handle-leave': {
     if (!args[0]) { console.error('Usage: send.js handle-leave <handle>'); process.exit(1); }
-    const handle = process.env.AGENT_CHAT_HANDLE || (() => { const d = findConfigDir(); return loadConfig(d).handle; })();
-    const configDir = findConfigDir(handle);
-    const keys = loadKeysFromDir(configDir);
+    const { handle, keys } = resolveHandleAndKeys();
     const result = await relayPost('/handle/leave', { handle: args[0] }, handle, keys.ed25519PrivateKey);
     console.log(JSON.stringify(result));
     break;
