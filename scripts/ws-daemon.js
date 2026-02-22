@@ -239,6 +239,24 @@ async function handleMessage(msg) {
     switch (event.event) {
       case 'trust_changed':
         await deliverToAI(`✅ @${event.target} is now ${event.level}`);
+        // Re-fetch inbox to process messages with updated effectiveRead
+        // (redeliver updated blind→trusted in DO, but WS didn't push them)
+        if (event.level === 'trust') {
+          try {
+            const { messages } = await relayGet(`/inbox/${handle}`);
+            if (messages) {
+              for (const msg of messages) {
+                await handleMessage({ type: 'message', ...msg });
+              }
+              const trustedIds = messages.filter(m => m.effectiveRead === 'trusted').map(m => m.id);
+              if (trustedIds.length > 0) {
+                await relayPost('/inbox/ack', { ids: trustedIds });
+              }
+            }
+          } catch (err) {
+            console.error('Inbox re-fetch after trust change failed:', err);
+          }
+        }
         break;
       case 'permission_changed':
         await deliverToAI(`📋 Permissions changed on ${event.handle}`);
