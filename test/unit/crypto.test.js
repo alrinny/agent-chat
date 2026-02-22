@@ -110,7 +110,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const result = await encryptForRecipient(
       'hello bob',
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     assert.ok(result.ciphertext, 'has ciphertext');
@@ -125,7 +124,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const encrypted = await encryptForRecipient(
       plaintext,
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     const decrypted = await decryptFromSender(
@@ -142,7 +140,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const encrypted = await encryptForRecipient(
       'secret',
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     await assert.rejects(async () => {
@@ -160,7 +157,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const encrypted = await encryptForRecipient(
       'secret',
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     // Tamper
@@ -175,7 +171,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const encrypted = await encryptForRecipient(
       '',
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     const decrypted = await decryptFromSender(
@@ -193,7 +188,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const encrypted = await encryptForRecipient(
       big,
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     const decrypted = await decryptFromSender(
@@ -210,7 +204,6 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const encrypted = await encryptForRecipient(
       'verify me',
       bobX.publicKey,
-      aliceX.privateKey,
       aliceEd.privateKey
     );
     // senderSig signs: ciphertext:ephemeralKey:nonce
@@ -221,8 +214,8 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
 
   // CRYPTO-ENCRYPT-008
   it('each encrypt produces unique nonce', async () => {
-    const e1 = await encryptForRecipient('msg', bobX.publicKey, aliceX.privateKey, aliceEd.privateKey);
-    const e2 = await encryptForRecipient('msg', bobX.publicKey, aliceX.privateKey, aliceEd.privateKey);
+    const e1 = await encryptForRecipient('msg', bobX.publicKey, aliceEd.privateKey);
+    const e2 = await encryptForRecipient('msg', bobX.publicKey, aliceEd.privateKey);
     assert.notEqual(e1.nonce, e2.nonce);
   });
 });
