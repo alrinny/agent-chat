@@ -129,7 +129,7 @@ switch (command) {
       const recipientPubKey = handleInfo.x25519PublicKey;
       if (!recipientPubKey) { console.error('Recipient has no X25519 public key'); process.exit(1); }
 
-      const encrypted = await encryptForRecipient(message, recipientPubKey, keys.x25519PrivateKey, keys.ed25519PrivateKey);
+      const encrypted = await encryptForRecipient(message, recipientPubKey, keys.ed25519PrivateKey);
       const result = await relayPost('/send', {
         to,
         ciphertext: encrypted.ciphertext,
@@ -145,7 +145,7 @@ switch (command) {
       const ciphertexts = [];
       for (const reader of handleInfo.readers) {
         if (reader.handle === handle) continue; // skip self
-        const encrypted = await encryptForRecipient(message, reader.x25519PublicKey, keys.x25519PrivateKey, keys.ed25519PrivateKey);
+        const encrypted = await encryptForRecipient(message, reader.x25519PublicKey, keys.ed25519PrivateKey);
         ciphertexts.push({
           recipient: reader.handle,
           ciphertext: encrypted.ciphertext,

@@ -116,7 +116,7 @@ describe('Key roundtrip — generated keys work with crypto.js', () => {
     const senderEd = await generateEd25519KeyPair();
     const senderX = await generateX25519KeyPair();
 
-    const encrypted = await encryptForRecipient('hello world', x25519PubB64, senderX.privateKey, senderEd.privateKey);
+    const encrypted = await encryptForRecipient("hello world", x25519PubB64, senderEd.privateKey);
     const decrypted = await decryptFromSender(encrypted.ciphertext, encrypted.ephemeralKey, encrypted.nonce, x25519PrivB64);
     assert.equal(decrypted, 'hello world');
   });

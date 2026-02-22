@@ -149,7 +149,7 @@ async function deliverToAI(text) {
 // --- Message handling ---
 
 async function handleMessage(msg) {
-  const contacts = loadContacts(CONFIG_DIR);
+  const contacts = CONFIG_DIR ? loadContacts(CONFIG_DIR) : {};
   const contactLabel = contacts[msg.from]?.label || msg.from;
 
   if (msg.type === 'message') {
@@ -157,7 +157,16 @@ async function handleMessage(msg) {
     // Redeliver sends same ID with UPGRADED effectiveRead → must process again
     const dedupKey = `${msg.id}:${msg.effectiveRead}`;
     if (msg.id && processedMessageIds.has(dedupKey)) return;
-    if (msg.id) processedMessageIds.add(dedupKey);
+    if (msg.id) {
+      processedMessageIds.add(dedupKey);
+      // Prevent unbounded growth — keep last 10000 entries
+      if (processedMessageIds.size > 10000) {
+        const iter = processedMessageIds.values();
+        for (let i = 0; i < 5000; i++) {
+          processedMessageIds.delete(iter.next().value);
+        }
+      }
+    }
 
     try {
       // Verify sender signature (cryptographic — relay can't forge)
@@ -289,8 +298,8 @@ async function connect() {
   };
 
   ws.onclose = (event) => {
-    console.log(`Disconnected (${event.code}). Reconnecting in ${reconnectDelay / 1000}s...`);
     setTimeout(connect, reconnectDelay);
+    console.log(`Disconnected (${event.code}). Reconnecting in ${reconnectDelay / 1000}s...`);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);
   };
 

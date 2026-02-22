@@ -28,7 +28,7 @@ describe('Crypto edge cases', () => {
     const senderX = await generateX25519KeyPair();
     const recipientX = await generateX25519KeyPair();
 
-    const encrypted = await encryptForRecipient('secret', recipientX.publicKey, senderX.privateKey, senderEd.privateKey);
+    const encrypted = await encryptForRecipient('secret', recipientX.publicKey, senderEd.privateKey);
     // Tamper nonce
     const wrongNonce = bufferToBase64(new Uint8Array(12));
     await assert.rejects(
@@ -43,7 +43,7 @@ describe('Crypto edge cases', () => {
     const recipientX = await generateX25519KeyPair();
     const wrongX = await generateX25519KeyPair();
 
-    const encrypted = await encryptForRecipient('secret', recipientX.publicKey, senderX.privateKey, senderEd.privateKey);
+    const encrypted = await encryptForRecipient('secret', recipientX.publicKey, senderEd.privateKey);
     await assert.rejects(
       () => decryptFromSender(encrypted.ciphertext, wrongX.publicKey, encrypted.nonce, recipientX.privateKey)
     );
@@ -73,7 +73,7 @@ describe('Crypto edge cases', () => {
     const recipientX = await generateX25519KeyPair();
 
     const msg = '🔐 Привет мир! こんにちは 🌍';
-    const enc = await encryptForRecipient(msg, recipientX.publicKey, senderX.privateKey, senderEd.privateKey);
+    const enc = await encryptForRecipient(msg, recipientX.publicKey, senderEd.privateKey);
     const dec = await decryptFromSender(enc.ciphertext, enc.ephemeralKey, enc.nonce, recipientX.privateKey);
     assert.equal(dec, msg);
   });
@@ -83,7 +83,7 @@ describe('Crypto edge cases', () => {
     const senderX = await generateX25519KeyPair();
     const recipientX = await generateX25519KeyPair();
 
-    const enc = await encryptForRecipient('test', recipientX.publicKey, senderX.privateKey, senderEd.privateKey);
+    const enc = await encryptForRecipient('test', recipientX.publicKey, senderEd.privateKey);
     const payload = `${enc.ciphertext}:${enc.ephemeralKey}:${enc.nonce}`;
     const valid = await verifySignature(payload, enc.senderSig, senderEd.publicKey);
     assert.equal(valid, true);
