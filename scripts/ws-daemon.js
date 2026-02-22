@@ -269,7 +269,7 @@ async function handleMessage(msg) {
       if (scan.flagged && !scan.unavailable) {
         // Flagged by Lakera — deliver to human only, AI excluded
         await sendTelegram(
-          `⚠️ Message from <b>@${msg.from}</b> (${contactLabel}) flagged: prompt injection detected\n\n` +
+          `⚠️ Message from <b>@${escapeHtml(msg.from)}</b> (${escapeHtml(contactLabel)}) flagged: prompt injection detected\n\n` +
           `🔒 Direct delivery — AI excluded:\n<pre>${escapeHtml(plaintext)}</pre>`
         );
         return;
