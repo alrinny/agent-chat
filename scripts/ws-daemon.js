@@ -78,11 +78,16 @@ async function relayPost(path, body) {
   return res.json();
 }
 
-// --- Guardrail ---
+// --- Guardrail (v2: 3-level fallback + health state) ---
 
-async function scanGuardrail(text) {
+let guardrailFailures = 0;
+let guardrailAlertSent = false;
+
+async function scanGuardrail(text, messageId = null) {
+  let result;
+
   if (LAKERA_KEY) {
-    // Local scan — plaintext never leaves this machine
+    // Level 1: Local scan — full E2E, plaintext never leaves this machine
     try {
       const res = await fetch('https://api.lakera.ai/v2/guard', {
         method: 'POST',
@@ -90,20 +95,56 @@ async function scanGuardrail(text) {
         body: JSON.stringify({ messages: [{ role: 'user', content: text }] }),
         signal: AbortSignal.timeout(10000)
       });
-      return await res.json();
+      result = await res.json();
     } catch (err) {
       console.error('Local guardrail error:', err);
-      return { flagged: true, error: true };
+      result = { flagged: true, error: true };
     }
+  } else if (messageId) {
+    // Level 2: Relay scan — crypto-verified (relay checks hash + senderSig)
+    try {
+      const bodyStr = JSON.stringify({ message_id: messageId, text });
+      const headers = await buildPostHeaders(handle, bodyStr, keys.ed25519PrivateKey);
+      const res = await fetch(`${RELAY}/guardrail/scan`, {
+        method: 'POST', headers, body: bodyStr,
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+      });
+
+      if (res.status === 429) {
+        result = { flagged: false, error: true, unavailable: true, reason: 'Rate limited — max 60 scans/hour' };
+      } else if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error(`Relay guardrail ${res.status}: ${err.error || 'unknown'}`);
+        result = { flagged: true, error: true, reason: err.error };
+      } else {
+        result = await res.json();
+      }
+    } catch (err) {
+      console.error('Relay guardrail error:', err);
+      result = { flagged: true, error: true };
+    }
+  } else {
+    // Level 3: No guardrail available
+    result = { flagged: false, error: true, unavailable: true };
   }
 
-  // Relay scan fallback
-  try {
-    return await relayPost('/guardrail/scan', { text });
-  } catch (err) {
-    console.error('Relay guardrail error:', err);
-    return { flagged: true, error: true };  // fail-safe
+  // Health state tracking
+  if (result.error) {
+    guardrailFailures++;
+    if (guardrailFailures >= 3 && !guardrailAlertSent) {
+      guardrailAlertSent = true;
+      await sendTelegram(
+        '⚠️ Guardrail unavailable — messages delivered without security scan.\n\n' +
+        'For local scanning:\n<code>export LAKERA_GUARD_KEY=your-key</code>\n' +
+        'Free: lakera.ai → API key in dashboard'
+      );
+    }
+  } else {
+    guardrailFailures = 0;
+    guardrailAlertSent = false;
   }
+
+  return result;
 }
 
 // --- Delivery ---
@@ -174,11 +215,14 @@ async function handleMessage(msg) {
 
     try {
       // Verify sender signature (cryptographic — relay can't forge)
+      // Guardrail v2: 4-part payload = ciphertext:ephemeralKey:nonce:plaintextHash
       if (msg.senderSig && msg.ciphertext && msg.ephemeralKey && msg.nonce) {
         try {
-          const senderInfo = await (await fetch(`${RELAY}/handle/info/${msg.from}`)).json();
+          const senderInfo = await (await fetch(`${RELAY}/handle/info/${msg.from}`, {
+            signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+          })).json();
           if (senderInfo?.ed25519PublicKey) {
-            const sigPayload = `${msg.ciphertext}:${msg.ephemeralKey}:${msg.nonce}`;
+            const sigPayload = `${msg.ciphertext}:${msg.ephemeralKey}:${msg.nonce}:${msg.plaintextHash || ''}`;
             const valid = await verifySignature(sigPayload, msg.senderSig, senderInfo.ed25519PublicKey);
             if (!valid) {
               console.error(`⚠️ SENDER SIGNATURE INVALID from @${msg.from}!`);
@@ -216,20 +260,28 @@ async function handleMessage(msg) {
         return;
       }
 
-      // TRUSTED — guardrail scan first
-      const scan = await scanGuardrail(plaintext);
-      if (scan.flagged) {
-        const reason = scan.error ? 'guardrail unavailable' : 'prompt injection detected';
+      // TRUSTED — guardrail scan (3-level fallback)
+      const scan = await scanGuardrail(plaintext, msg.id);
+
+      if (scan.flagged && !scan.unavailable) {
+        // Flagged by Lakera — deliver to human only, AI excluded
         await sendTelegram(
-          `⚠️ Message from <b>@${msg.from}</b> (${contactLabel}) flagged: ${reason}\n\n` +
+          `⚠️ Message from <b>@${msg.from}</b> (${contactLabel}) flagged: prompt injection detected\n\n` +
           `🔒 Direct delivery — AI excluded:\n<pre>${escapeHtml(plaintext)}</pre>`
         );
         return;
       }
 
-      // Clean trusted message — deliver to AI
+      if (scan.unavailable) {
+        // Guardrail unavailable — still deliver to AI (trusted source), but notify user
+        const reason = scan.reason || 'guardrail unavailable';
+        await sendTelegram(`ℹ️ Message from @${msg.from} delivered without scan: ${reason}`);
+      }
+
+      // Clean or unavailable-but-trusted — deliver to AI
       const channel = msg.channel ? `#${msg.channel} — ` : '';
-      await deliverToAI(`📨 ${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
+      const prefix = scan.unavailable ? '⚠️ [unscanned] ' : '📨 ';
+      await deliverToAI(`${prefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
 
     } catch (err) {
       console.error('Decrypt error:', err);
@@ -318,12 +370,17 @@ async function connect() {
       }
     } catch (err) {
       console.error('Message handling error:', err);
+      await sendTelegram(`⚠️ Error processing message: ${err.message}`);
     }
   };
 
   ws.onclose = (event) => {
-    setTimeout(connect, reconnectDelay);
     console.log(`Disconnected (${event.code}). Reconnecting in ${reconnectDelay / 1000}s...`);
+    // Alert user only on persistent disconnection (30s+ = 4th retry)
+    if (reconnectDelay >= 16000) {
+      sendTelegram(`⚠️ Agent Chat connection lost. Retrying every ${reconnectDelay / 1000}s...`);
+    }
+    setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);
   };
 
@@ -407,7 +464,19 @@ async function startTelegramCallbackHandler() {
 // --- Start ---
 
 // Export for testing
-export { handleMessage, escapeHtml, blindMessageCache, processedMessageIds, scanGuardrail };
+// Guardrail state getter for testing
+function getGuardrailState() {
+  return { failures: guardrailFailures, alertSent: guardrailAlertSent };
+}
+function resetGuardrailState() {
+  guardrailFailures = 0;
+  guardrailAlertSent = false;
+}
+
+export {
+  handleMessage, escapeHtml, blindMessageCache, processedMessageIds,
+  scanGuardrail, getGuardrailState, resetGuardrailState
+};
 
 // Only auto-connect when running as main script
 if (process.argv[1]?.endsWith('ws-daemon.js')) {
