@@ -6,7 +6,7 @@
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL } from '../../lib/config.js';
@@ -106,5 +106,41 @@ describe('DEFAULT_RELAY_URL', () => {
   // CONFIG-010
   it('is a valid HTTPS URL', () => {
     assert.ok(DEFAULT_RELAY_URL.startsWith('https://'));
+  });
+});
+
+describe('loadConfig spread order', () => {
+  // AUDIT-5: spread must not override defaults
+  it('relay defaults to DEFAULT_RELAY_URL when not in config', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'config-spread-'));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ handle: 'test' }));
+    const config = loadConfig(dir);
+    assert.strictEqual(config.relay, DEFAULT_RELAY_URL);
+    rmSync(dir, { recursive: true });
+  });
+
+  it('relay=null in config still gets default', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'config-null-'));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ handle: 'test', relay: null }));
+    const config = loadConfig(dir);
+    assert.strictEqual(config.relay, DEFAULT_RELAY_URL);
+    rmSync(dir, { recursive: true });
+  });
+
+  it('custom relay is preserved', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'config-custom-'));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ handle: 'test', relay: 'https://custom.relay' }));
+    const config = loadConfig(dir);
+    assert.strictEqual(config.relay, 'https://custom.relay');
+    rmSync(dir, { recursive: true });
+  });
+
+  it('extra config fields are preserved', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'config-extra-'));
+    writeFileSync(join(dir, 'config.json'), JSON.stringify({ handle: 'test', myCustom: 'value' }));
+    const config = loadConfig(dir);
+    assert.strictEqual(config.myCustom, 'value');
+    assert.strictEqual(config.relay, DEFAULT_RELAY_URL);
+    rmSync(dir, { recursive: true });
   });
 });

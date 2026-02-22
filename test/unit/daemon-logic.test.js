@@ -61,4 +61,15 @@ describe('Blind message cache', () => {
     blindMessageCache.delete('show_temp');
     assert.equal(blindMessageCache.get('show_temp'), undefined);
   });
+
+  // AUDIT-5: processedMessageIds grows and is exported
+  it('processedMessageIds is a Set that tracks dedup keys', () => {
+    processedMessageIds.clear();
+    processedMessageIds.add('msg-1:trusted');
+    processedMessageIds.add('msg-1:blind');
+    assert.equal(processedMessageIds.size, 2); // same ID, different effectiveRead
+    assert.ok(processedMessageIds.has('msg-1:trusted'));
+    assert.ok(processedMessageIds.has('msg-1:blind'));
+    processedMessageIds.clear();
+  });
 });

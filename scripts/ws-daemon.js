@@ -194,8 +194,9 @@ async function handleMessage(msg) {
         keys.x25519PrivateKey
       );
 
-      if (msg.effectiveRead === 'blind') {
-        // BLIND — notify human, cache for "Show me", AI excluded
+      if (msg.effectiveRead !== 'trusted') {
+        // BLIND (or unknown) — notify human, cache for "Show me", AI excluded
+        // Security: unknown effectiveRead values default to blind (safe default)
         const trustTokenRes = await relayPost('/trust-token', { target: msg.from });
         const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
 
