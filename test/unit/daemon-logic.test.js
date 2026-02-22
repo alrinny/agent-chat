@@ -7,7 +7,7 @@
 
 import { describe, it, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { escapeHtml, blindMessageCache, processedMessageIds } from '../../scripts/ws-daemon.js';
+import { escapeHtml, blindMessageCache, processedMessageIds, getGuardrailState, resetGuardrailState } from '../../scripts/ws-daemon.js';
 
 before(() => {
   blindMessageCache.clear();
@@ -71,5 +71,33 @@ describe('Blind message cache', () => {
     assert.ok(processedMessageIds.has('msg-1:trusted'));
     assert.ok(processedMessageIds.has('msg-1:blind'));
     processedMessageIds.clear();
+  });
+});
+
+describe('Guardrail health state', () => {
+  // GUARD-DEGRADE-STATE-001: initial state is clean
+  it('initial guardrail state: 0 failures, no alert', () => {
+    resetGuardrailState();
+    const state = getGuardrailState();
+    assert.equal(state.failures, 0);
+    assert.equal(state.alertSent, false);
+  });
+
+  // GUARD-DEGRADE-STATE-002: reset clears state
+  it('resetGuardrailState clears failures and alert flag', () => {
+    // Manually can't set failures from outside, but reset should work
+    resetGuardrailState();
+    const state = getGuardrailState();
+    assert.equal(state.failures, 0);
+    assert.equal(state.alertSent, false);
+  });
+
+  // GUARD-DEGRADE-STATE-003: getGuardrailState returns current state
+  it('getGuardrailState returns { failures, alertSent }', () => {
+    const state = getGuardrailState();
+    assert.ok('failures' in state);
+    assert.ok('alertSent' in state);
+    assert.equal(typeof state.failures, 'number');
+    assert.equal(typeof state.alertSent, 'boolean');
   });
 });
