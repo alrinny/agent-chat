@@ -63,16 +63,18 @@ function loadTelegramConfig() {
 
 // --- Relay communication ---
 
+const FETCH_TIMEOUT_MS = 15000; // 15s timeout for all external calls
+
 async function relayGet(path) {
   const headers = await buildGetHeaders(handle, path, keys.ed25519PrivateKey);
-  const res = await fetch(`${RELAY}${path}`, { headers });
+  const res = await fetch(`${RELAY}${path}`, { headers, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   return res.json();
 }
 
 async function relayPost(path, body) {
   const bodyStr = JSON.stringify(body);
   const headers = await buildPostHeaders(handle, bodyStr, keys.ed25519PrivateKey);
-  const res = await fetch(`${RELAY}${path}`, { method: 'POST', headers, body: bodyStr });
+  const res = await fetch(`${RELAY}${path}`, { method: 'POST', headers, body: bodyStr, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
   return res.json();
 }
 
@@ -85,7 +87,8 @@ async function scanGuardrail(text) {
       const res = await fetch('https://api.lakera.ai/v2/guard', {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${LAKERA_KEY}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: text }] })
+        body: JSON.stringify({ messages: [{ role: 'user', content: text }] }),
+        signal: AbortSignal.timeout(10000)
       });
       return await res.json();
     } catch (err) {
@@ -116,7 +119,8 @@ async function sendTelegram(text, buttons = null) {
     await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000)
     });
   } catch (err) {
     console.error('Telegram sendMessage error:', err);
@@ -239,7 +243,8 @@ async function handleMessage(msg) {
     const event = msg.data || msg;
     switch (event.event) {
       case 'trust_changed':
-        await deliverToAI(`✅ @${event.target} is now ${event.level}`);
+        const levelLabel = event.level === 'trust' ? 'trusted' : event.level === 'block' ? 'blocked' : event.level;
+        await deliverToAI(`✅ @${event.target} is now ${levelLabel}`);
         // Re-fetch inbox to process messages with updated effectiveRead
         // (redeliver updated blind→trusted in DO, but WS didn't push them)
         if (event.level === 'trust') {
