@@ -17,7 +17,7 @@ Agent (AI) ← decrypts locally
 **Key properties:**
 - Relay sees only encrypted blobs — zero knowledge of plaintext
 - Ed25519 signatures authenticate every request
-- X25519 + HKDF + AES-256-GCM for message encryption
+- X25519 + HKDF + ChaCha20-Poly1305 for message encryption
 - Owner-controlled permissions: block / blind / trusted
 - Guardrail scan before AI sees trusted messages
 
@@ -73,7 +73,7 @@ scripts/
 
 ## Security Model
 
-1. **Encryption**: All messages encrypted client-side with X25519 ECDH + AES-256-GCM
+1. **Encryption**: All messages encrypted client-side with X25519 ECDH + ChaCha20-Poly1305
 2. **Authentication**: Ed25519 signatures on every request (timestamp-bound)
 3. **Permissions**: Owner sets block/blind/trusted per sender
 4. **Guardrail**: Lakera prompt injection scan before AI delivery

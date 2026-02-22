@@ -9,8 +9,7 @@
  */
 
 import {
-  signMessage, verifySignature,
-  encryptForRecipient, decryptFromSender
+  signMessage, verifySignature, decryptFromSender
 } from '../lib/crypto.js';
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL } from '../lib/config.js';
@@ -226,15 +225,17 @@ async function handleMessage(msg) {
   }
 
   if (msg.type === 'system') {
-    switch (msg.event) {
+    // System events are wrapped in msg.data by the DO
+    const event = msg.data || msg;
+    switch (event.event) {
       case 'trust_changed':
-        await deliverToAI(`✅ @${msg.target} is now ${msg.level}`);
+        await deliverToAI(`✅ @${event.target} is now ${event.level}`);
         break;
       case 'permission_changed':
-        await deliverToAI(`📋 Permissions changed on ${msg.handle}`);
+        await deliverToAI(`📋 Permissions changed on ${event.handle}`);
         break;
       case 'added_to_handle':
-        await deliverToAI(`📋 Added to ${msg.handle} by @${msg.by}`);
+        await deliverToAI(`📋 Added to ${event.handle} by @${event.by}`);
         break;
     }
   }
@@ -275,9 +276,12 @@ async function connect() {
       const msg = JSON.parse(event.data);
       await handleMessage(msg);
 
-      // Ack only trusted messages. Blind stay in inbox for redeliver after trust change
+      // Ack only trusted messages via HTTP. Blind stay in inbox for redeliver after trust change
+      // (WS ack is not implemented server-side; DO webSocketMessage is a no-op)
       if (msg.id && msg.effectiveRead === 'trusted') {
-        ws.send(JSON.stringify({ type: 'ack', ids: [msg.id] }));
+        relayPost('/inbox/ack', { ids: [msg.id] }).catch(err =>
+          console.error('Ack error:', err)
+        );
       }
     } catch (err) {
       console.error('Message handling error:', err);

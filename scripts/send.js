@@ -4,7 +4,7 @@
  * Commands: register, send, status, handle-create, handle-permission, handle-join, handle-leave
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   generateEd25519KeyPair, generateX25519KeyPair,
@@ -27,7 +27,9 @@ function findConfigDir(handleHint) {
   }
   // Auto-detect from secrets directory
   try {
-    const dirs = readdirSync(SECRETS_DIR).filter(d => d.startsWith('agent-chat-'));
+    const dirs = readdirSync(SECRETS_DIR).filter(d =>
+      d.startsWith('agent-chat-') && statSync(join(SECRETS_DIR, d)).isDirectory()
+    );
     if (dirs.length === 0) { console.error('No handle found. Run setup.sh first.'); process.exit(1); }
     if (dirs.length > 1) { console.error(`Multiple handles found: ${dirs.map(d => d.replace('agent-chat-', '')).join(', ')}. Set AGENT_CHAT_HANDLE.`); process.exit(1); }
     return join(SECRETS_DIR, dirs[0]);
