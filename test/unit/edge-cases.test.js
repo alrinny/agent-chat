@@ -78,13 +78,14 @@ describe('Crypto edge cases', () => {
     assert.equal(dec, msg);
   });
 
-  it('senderSig format: ciphertext:ephemeralKey:nonce', async () => {
+  it('senderSig format: ciphertext:ephemeralKey:nonce:plaintextHash (4-part)', async () => {
     const senderEd = await generateEd25519KeyPair();
     const senderX = await generateX25519KeyPair();
     const recipientX = await generateX25519KeyPair();
 
     const enc = await encryptForRecipient('test', recipientX.publicKey, senderEd.privateKey);
-    const payload = `${enc.ciphertext}:${enc.ephemeralKey}:${enc.nonce}`;
+    // Guardrail v2: 4-part payload includes plaintextHash
+    const payload = `${enc.ciphertext}:${enc.ephemeralKey}:${enc.nonce}:${enc.plaintextHash}`;
     const valid = await verifySignature(payload, enc.senderSig, senderEd.publicKey);
     assert.equal(valid, true);
   });

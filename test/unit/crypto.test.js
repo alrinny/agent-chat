@@ -106,7 +106,7 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
   });
 
   // CRYPTO-ENCRYPT-001
-  it('encrypt → { ciphertext, ephemeralKey, nonce, senderSig }', async () => {
+  it('encrypt → { ciphertext, ephemeralKey, nonce, senderSig, plaintextHash }', async () => {
     const result = await encryptForRecipient(
       'hello bob',
       bobX.publicKey,
@@ -116,6 +116,7 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     assert.ok(result.ephemeralKey, 'has ephemeralKey');
     assert.ok(result.nonce, 'has nonce');
     assert.ok(result.senderSig, 'has senderSig');
+    assert.ok(result.plaintextHash, 'has plaintextHash');
   });
 
   // CRYPTO-ENCRYPT-002
@@ -200,16 +201,29 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
   });
 
   // CRYPTO-ENCRYPT-007
-  it('senderSig verifies with sender Ed25519 pubkey', async () => {
+  it('senderSig verifies with 4-part payload (ciphertext:ephKey:nonce:plaintextHash)', async () => {
     const encrypted = await encryptForRecipient(
       'verify me',
       bobX.publicKey,
       aliceEd.privateKey
     );
-    // senderSig signs: ciphertext:ephemeralKey:nonce
-    const payload = `${encrypted.ciphertext}:${encrypted.ephemeralKey}:${encrypted.nonce}`;
+    // senderSig signs: ciphertext:ephemeralKey:nonce:plaintextHash (4-part)
+    const payload = `${encrypted.ciphertext}:${encrypted.ephemeralKey}:${encrypted.nonce}:${encrypted.plaintextHash}`;
     const ok = await verifySignature(payload, encrypted.senderSig, aliceEd.publicKey);
     assert.equal(ok, true);
+  });
+
+  // GUARD-SIG-001: old 3-part payload does NOT verify
+  it('old 3-part sig payload does NOT verify with new senderSig', async () => {
+    const encrypted = await encryptForRecipient(
+      'verify me',
+      bobX.publicKey,
+      aliceEd.privateKey
+    );
+    // Old 3-part format should NOT work
+    const oldPayload = `${encrypted.ciphertext}:${encrypted.ephemeralKey}:${encrypted.nonce}`;
+    const ok = await verifySignature(oldPayload, encrypted.senderSig, aliceEd.publicKey);
+    assert.equal(ok, false);
   });
 
   // CRYPTO-ENCRYPT-008
@@ -217,6 +231,44 @@ describe('X25519 + ChaCha20-Poly1305 Encryption', () => {
     const e1 = await encryptForRecipient('msg', bobX.publicKey, aliceEd.privateKey);
     const e2 = await encryptForRecipient('msg', bobX.publicKey, aliceEd.privateKey);
     assert.notEqual(e1.nonce, e2.nonce);
+  });
+
+  // GUARD-SIG-002: plaintextHash is SHA-256 of plaintext (base64)
+  it('plaintextHash = SHA-256(plaintext) base64', async () => {
+    const { createHash } = await import('node:crypto');
+    const text = 'hello bob';
+    const encrypted = await encryptForRecipient(text, bobX.publicKey, aliceEd.privateKey);
+    const expected = createHash('sha256').update(text, 'utf8').digest('base64');
+    assert.equal(encrypted.plaintextHash, expected);
+  });
+
+  // GUARD-SIG-003: same plaintext → same plaintextHash (different ciphertexts)
+  it('same plaintext → same plaintextHash across encryptions', async () => {
+    const text = 'group message';
+    const e1 = await encryptForRecipient(text, bobX.publicKey, aliceEd.privateKey);
+    const e2 = await encryptForRecipient(text, aliceX.publicKey, aliceEd.privateKey);
+    assert.equal(e1.plaintextHash, e2.plaintextHash);
+    assert.notEqual(e1.ciphertext, e2.ciphertext); // different ciphertexts
+  });
+
+  // GUARD-SIG-004: empty plaintext has valid hash
+  it('empty plaintext → valid plaintextHash', async () => {
+    const encrypted = await encryptForRecipient('', bobX.publicKey, aliceEd.privateKey);
+    assert.ok(encrypted.plaintextHash);
+    assert.ok(typeof encrypted.plaintextHash === 'string');
+    assert.ok(encrypted.plaintextHash.length > 0);
+  });
+
+  // GUARD-SIG-005: full roundtrip — encrypt, decrypt, verify hash matches
+  it('encrypt → decrypt → verify plaintextHash matches decrypted text', async () => {
+    const text = 'full roundtrip test';
+    const encrypted = await encryptForRecipient(text, bobX.publicKey, aliceEd.privateKey);
+    const decrypted = await decryptFromSender(
+      encrypted.ciphertext, encrypted.ephemeralKey, encrypted.nonce, bobX.privateKey
+    );
+    const { createHash } = await import('node:crypto');
+    const computedHash = createHash('sha256').update(decrypted, 'utf8').digest('base64');
+    assert.equal(computedHash, encrypted.plaintextHash);
   });
 });
 
