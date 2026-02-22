@@ -135,7 +135,8 @@ switch (command) {
         ciphertext: encrypted.ciphertext,
         ephemeralKey: encrypted.ephemeralKey,
         nonce: encrypted.nonce,
-        senderSig: encrypted.senderSig
+        senderSig: encrypted.senderSig,
+        plaintextHash: encrypted.plaintextHash
       }, handle, keys.ed25519PrivateKey);
       console.log(JSON.stringify(result));
     } else {
@@ -151,7 +152,8 @@ switch (command) {
           ciphertext: encrypted.ciphertext,
           ephemeralKey: encrypted.ephemeralKey,
           nonce: encrypted.nonce,
-          senderSig: encrypted.senderSig
+          senderSig: encrypted.senderSig,
+          plaintextHash: encrypted.plaintextHash
         });
       }
       if (ciphertexts.length === 0) { console.error('No readers to send to'); process.exit(1); }
