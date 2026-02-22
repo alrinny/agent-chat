@@ -5,7 +5,7 @@
  * runs guardrail scans, and delivers to the AI (or human for blind messages).
  *
  * Usage: ws-daemon.js <handle>
- * Env: AGENT_CHAT_RELAY, AGENT_SECRETS_DIR, AGENT_DELIVER_CMD, LAKERA_GUARD_KEY
+ * Env: AGENT_CHAT_RELAY, AGENT_SECRETS_DIR, AGENT_DELIVER_CMD, LAKERA_GUARD_KEY, AGENT_CHAT_THREAD_ID
  */
 
 import {
@@ -45,9 +45,6 @@ let keys = null;
 
 // --- In-memory state ---
 
-// Cache for "Show me" blind messages (daemon-local, not persisted)
-const blindMessageCache = new Map();  // callbackId → { text, from, ts }
-
 // Deduplication: track processed message IDs to avoid duplicate notifications
 const processedMessageIds = new Set();  // "msgId:effectiveRead" → processed
 
@@ -57,7 +54,12 @@ function loadTelegramConfig() {
   const cfgFile = join(SECRETS_DIR, 'agent-chat-telegram.json');
   if (!existsSync(cfgFile)) return null;
   try {
-    return JSON.parse(readFileSync(cfgFile, 'utf8'));
+    const config = JSON.parse(readFileSync(cfgFile, 'utf8'));
+    // threadId can come from config file or env var
+    if (!config.threadId && process.env.AGENT_CHAT_THREAD_ID) {
+      config.threadId = parseInt(process.env.AGENT_CHAT_THREAD_ID, 10);
+    }
+    return config;
   } catch { return null; }
 }
 
@@ -154,6 +156,7 @@ async function sendTelegram(text, buttons = null) {
   if (!tg) return deliverFallback(text);
 
   const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
+  if (tg.threadId) payload.message_thread_id = tg.threadId;
   if (buttons) payload.reply_markup = { inline_keyboard: buttons };
 
   try {
@@ -243,20 +246,20 @@ async function handleMessage(msg) {
       );
 
       if (msg.effectiveRead !== 'trusted') {
-        // BLIND (or unknown) — notify human, cache for "Show me", AI excluded
+        // BLIND (or unknown) — show plaintext to human via Telegram, AI excluded
         // Security: unknown effectiveRead values default to blind (safe default)
+        // Daemon sends directly via Bot API — OpenClaw/AI never sees this message
         const trustTokenRes = await relayPost('/trust-token', { target: msg.from });
         const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
 
-        const showCallbackId = `show_${msg.id}`;
-        blindMessageCache.set(showCallbackId, { text: plaintext, from: msg.from, ts: Date.now() });
-        setTimeout(() => blindMessageCache.delete(showCallbackId), 3600000);
-
         const buttons = [
-          [{ text: '👁 Show', callback_data: showCallbackId }],
           [{ text: '✅ Trust', url: trustTokenRes.url }, { text: '🚫 Block', url: blockTokenRes.url }]
         ];
-        await sendTelegram(`📨 New message from <b>@${msg.from}</b>`, buttons);
+        await sendTelegram(
+          `🔒 <b>@${msg.from}</b> <i>(AI doesn't see this)</i>:\n\n` +
+          `${escapeHtml(plaintext)}`,
+          buttons
+        );
         return;
       }
 
@@ -414,52 +417,10 @@ async function pollFallback() {
   }
 }
 
-// --- Telegram callback handler for "Show me" ---
-
-async function startTelegramCallbackHandler() {
-  const tg = loadTelegramConfig();
-  if (!tg) return;
-
-  let offset = 0;
-  while (true) {
-    try {
-      const res = await fetch(
-        `https://api.telegram.org/bot${tg.botToken}/getUpdates?offset=${offset}&timeout=30&allowed_updates=["callback_query"]`
-      );
-      const { result } = await res.json();
-
-      for (const update of result) {
-        offset = update.update_id + 1;
-        const cb = update.callback_query;
-        if (!cb || !cb.data?.startsWith('show_')) continue;
-
-        const cached = blindMessageCache.get(cb.data);
-        if (cached) {
-          await fetch(`https://api.telegram.org/bot${tg.botToken}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callback_query_id: cb.id })
-          });
-          await sendTelegram(
-            `👁 Message from <b>@${cached.from}</b>:\n\n` +
-            `<pre>${escapeHtml(cached.text)}</pre>\n\n` +
-            `<i>Shown to you only. AI doesn't see this.</i>`
-          );
-          blindMessageCache.delete(cb.data);
-        } else {
-          await fetch(`https://api.telegram.org/bot${tg.botToken}/answerCallbackQuery`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ callback_query_id: cb.id, text: 'Message expired', show_alert: true })
-          });
-        }
-      }
-    } catch (err) {
-      console.error('Callback handler error:', err);
-      await new Promise(r => setTimeout(r, 5000));
-    }
-  }
-}
+// Note: No Telegram callback handler needed.
+// Daemon is write-only — sends messages via Bot API, never listens for callbacks.
+// Trust/Block buttons are URL buttons that open relay trust page directly.
+// This avoids conflicts with OpenClaw or any other bot token consumer.
 
 // --- Start ---
 
@@ -474,7 +435,7 @@ function resetGuardrailState() {
 }
 
 export {
-  handleMessage, escapeHtml, blindMessageCache, processedMessageIds,
+  handleMessage, escapeHtml, processedMessageIds,
   scanGuardrail, getGuardrailState, resetGuardrailState
 };
 
@@ -482,8 +443,6 @@ export {
 if (process.argv[1]?.endsWith('ws-daemon.js')) {
   if (!handle) { console.error('Usage: ws-daemon.js <handle>'); process.exit(1); }
   keys = loadKeys();
-
-  startTelegramCallbackHandler().catch(err => console.error('Callback handler fatal:', err));
 
   if (typeof WebSocket !== 'undefined') {
     connect();
