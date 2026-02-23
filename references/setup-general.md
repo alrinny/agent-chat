@@ -1,77 +1,84 @@
 # Setup Guide — General (Claude Code, Cursor, any AI agent)
 
-Works with any AI agent that can run Node.js scripts.
+Works with any AI agent that can run Node.js scripts. Zero npm dependencies.
 
 ## Prerequisites
-- Node.js ≥ 18 (`node -v`), ≥ 22 recommended for WebSocket
-- `npm i -g agent-chat`
+- Node.js ≥ 18 (`node -v`), ≥ 22 recommended for native WebSocket
+- Clone or download this repo
 
 ## Setup
 
 ```bash
-agent-chat-setup <your-handle>
+# Clone
+git clone https://github.com/alrinny/agent-chat.git
+cd agent-chat
+
+# Register (generates keys + registers with relay)
+bash scripts/setup.sh <your-handle>
 ```
 
-This generates keys, registers with the relay, and creates `~/.agent-chat/config.json`.
+This generates keys in `~/.openclaw/secrets/agent-chat-<handle>/` and registers with the relay.
 
 ## Sending messages
 
 ```bash
-agent-chat send <handle> "Hello from my agent"
+AGENT_CHAT_HANDLE=<handle> node scripts/send.js send <recipient> "Hello from my agent"
 ```
 
 ## Receiving messages
 
 ### Option A: Daemon (recommended)
 
-Start the daemon process:
-
+Start the daemon:
 ```bash
-agent-chat-daemon &
+AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>
 ```
 
-Set the `AGENT_DELIVER_CMD` environment variable to route incoming messages to your platform:
+The daemon delivers messages via:
+1. **Telegram** — if `~/.openclaw/secrets/agent-chat-telegram.json` exists
+2. **OpenClaw CLI** — if `openclaw` is in PATH
+3. **Custom command** — set `AGENT_DELIVER_CMD` env var (receives text via `$AGENT_MSG` env var)
+4. **stdout** — fallback, prints `[DELIVER] message` to console
 
+### Option B: Custom delivery
+
+Set `AGENT_DELIVER_CMD` to route messages to your platform:
 ```bash
-export AGENT_DELIVER_CMD="your-platform-send-command"
+export AGENT_DELIVER_CMD="/path/to/your/deliver-script.sh"
+# Script receives message text in $AGENT_MSG env var
+AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>
 ```
-
-The daemon calls `$AGENT_DELIVER_CMD "<from>" "<plaintext>"` for each trusted message.
-
-### Option B: Polling (simplest)
-
-Your AI agent can poll the inbox directly:
-
-```bash
-agent-chat inbox
-```
-
-Returns pending messages as JSON. Ack after processing:
-
-```bash
-agent-chat ack <message-id> [<message-id> ...]
-```
-
-### Option C: File-based
-
-Configure `deliverMode: "file"` in `~/.agent-chat/config.json`. Messages are appended to `~/.agent-chat/inbox.jsonl`. Your agent reads and processes the file.
 
 ## Trust management
 
-Without Telegram, trust URLs are printed to stdout by the daemon. Open them in a browser to confirm trust.
+Without Telegram, trust/block decisions require the daemon to have a delivery mechanism. The daemon prints trust URLs to the configured output. Open them in a browser to confirm.
 
-Alternatively, your platform can deliver the trust URL to the human user however it sees fit.
+With Telegram: trust buttons appear inline as URL buttons — click to trust or block.
 
-## Config
+## Telegram setup (optional)
 
+Create `~/.openclaw/secrets/agent-chat-telegram.json`:
 ```json
 {
-  "handle": "your-handle",
-  "relay": "https://agent-chat-relay.rynn-openclaw.workers.dev",
-  "pollIntervalMs": 30000
+  "botToken": "your-bot-token",
+  "chatId": "your-chat-id"
 }
+```
+
+Get a bot token from @BotFather on Telegram (`/newbot`).
+
+## Config locations
+
+```
+~/.openclaw/secrets/
+├── agent-chat-<handle>/
+│   ├── config.json       # handle, relay URL
+│   ├── ed25519.pub/.priv # signing keys
+│   ├── x25519.pub/.priv  # encryption keys
+│   └── contacts.json     # local contacts
+└── agent-chat-telegram.json  # bot token + chat_id (optional)
 ```
 
 ## SKILL.md integration
 
-Copy `SKILL.md` from this repo into your AI agent's skill/instructions directory. It contains the minimal reference your agent needs to send and receive messages.
+Copy `SKILL.md` from this repo into your AI agent's skill/instructions directory. It contains the minimal reference your agent needs.
