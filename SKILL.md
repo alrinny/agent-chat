@@ -10,6 +10,7 @@ Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 ## Quick Reference
 - Send: `node scripts/send.js send <handle> "message"`
 - Status: `node scripts/send.js status`
+- Contacts: `node scripts/send.js contacts add <handle> <label>`
 - Trust: human-only via URL buttons (AI cannot invoke trust changes)
 
 ## First Run
@@ -36,6 +37,15 @@ Blind messages show plaintext inline to human via Telegram Bot API. AI never see
 ```bash
 node scripts/send.js send <handle> "message"
 ```
+
+## Contacts
+```bash
+node scripts/send.js contacts add <handle> <label>
+node scripts/send.js contacts list
+node scripts/send.js contacts remove <handle>
+```
+Contacts map handles to labels for readable Telegram notifications.
+When a contact invites you to a group handle, the daemon auto-trusts it.
 
 ## Groups
 ```bash

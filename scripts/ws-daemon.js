@@ -324,6 +324,16 @@ async function handleMessage(msg) {
         break;
       case 'added_to_handle':
         await deliverToAI(`📋 Added to ${event.handle} by @${event.by}`);
+        // Auto-trust: if inviter is in contacts → auto-set selfRead=trusted for the group
+        try {
+          const contacts = CONFIG_DIR ? loadContacts(CONFIG_DIR) : {};
+          if (contacts[event.by]) {
+            await relayPost('/handle/self', { handle: event.handle, selfRead: 'trusted' });
+            await deliverToAI(`🤝 Auto-trusted ${event.handle} (invited by contact @${event.by})`);
+          }
+        } catch (err) {
+          console.error('Auto-trust check failed:', err);
+        }
         break;
     }
   }
