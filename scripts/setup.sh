@@ -39,12 +39,15 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SECRETS_DIR="${AGENT_SECRETS_DIR:-$HOME/.openclaw/secrets}"
 CONFIG_DIR="$SECRETS_DIR/agent-chat-$HANDLE"
 
-# --- Step 1: Generate keys ---
+# --- Step 1: Generate keys (skip if already exist) ---
 mkdir -p "$CONFIG_DIR"
 chmod 700 "$CONFIG_DIR"
 
-echo "🔑 Generating keys for @$HANDLE..."
-node --input-type=module -e "
+if [ -f "$CONFIG_DIR/ed25519.priv" ] && [ -f "$CONFIG_DIR/x25519.priv" ]; then
+  echo "🔑 Existing keys found for @$HANDLE — reusing"
+else
+  echo "🔑 Generating keys for @$HANDLE..."
+  node --input-type=module -e "
 import { generateEd25519KeyPair, generateX25519KeyPair } from '${SCRIPT_DIR}/../lib/crypto.js';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -64,13 +67,36 @@ writeFileSync(join(configDir, 'config.json'), JSON.stringify({ handle: '${HANDLE
 console.log('  Ed25519: ' + ed.publicKey.slice(0, 16) + '...');
 console.log('  X25519:  ' + x.publicKey.slice(0, 16) + '...');
 "
-chmod 600 "$CONFIG_DIR/ed25519.priv" "$CONFIG_DIR/x25519.priv"
+  chmod 600 "$CONFIG_DIR/ed25519.priv" "$CONFIG_DIR/x25519.priv"
+fi
+
+# Ensure config.json exists (even if keys were reused)
+if [ ! -f "$CONFIG_DIR/config.json" ]; then
+  echo "{\"handle\":\"$HANDLE\",\"relay\":\"$RELAY\"}" > "$CONFIG_DIR/config.json"
+fi
 
 # --- Step 2: Register with relay ---
 echo ""
 echo "📡 Registering @$HANDLE with relay ($RELAY)..."
-AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
-  node "$SCRIPT_DIR/send.js" register "$HANDLE"
+REG_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
+  node "$SCRIPT_DIR/send.js" register "$HANDLE" 2>&1)
+echo "$REG_RESULT"
+
+# Check if registration failed
+if echo "$REG_RESULT" | grep -q '"error"'; then
+  if echo "$REG_RESULT" | grep -q 'already taken'; then
+    echo ""
+    echo "⚠️  Handle @$HANDLE is already registered on the relay."
+    echo "   If you own it, your local keys may not match. Options:"
+    echo "   1. Choose a different handle: bash $0 <other-handle>"
+    echo "   2. If this is a fresh relay, ask the admin to clear the handle"
+    echo ""
+    echo "   Continuing with Telegram setup (daemon may fail to authenticate)..."
+  else
+    echo "❌ Registration failed. Check the error above." >&2
+    exit 1
+  fi
+fi
 
 # --- Step 3: Telegram configuration ---
 echo ""
@@ -122,7 +148,7 @@ fi
 
 # --- Step 4: Done ---
 echo ""
-echo "✅ @$HANDLE registered!"
+echo "✅ @$HANDLE setup complete!"
 echo ""
 echo "Start daemon:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
 echo "Send message:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/send.js send <recipient> \"message\""
