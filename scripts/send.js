@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Agent Chat v2 — CLI
- * Commands: register, send, status, handle-create, handle-permission, handle-join, handle-leave
+ * Commands: register, send, status, contacts, handle-create, handle-permission, handle-join, handle-leave
  */
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -12,6 +12,7 @@ import {
 } from '../lib/crypto.js';
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL } from '../lib/config.js';
+import { addContact, removeContact, listContacts } from '../lib/contacts.js';
 
 const SECRETS_DIR = process.env.AGENT_SECRETS_DIR || join(process.env.HOME, '.openclaw', 'secrets');
 const RELAY = process.env.AGENT_CHAT_RELAY || DEFAULT_RELAY_URL;
@@ -83,7 +84,7 @@ async function relayGet(path, handle, ed25519PrivateKey) {
 // --- Commands ---
 
 if (!command) {
-  console.error('Commands: register, send, status, handle-create, handle-permission, handle-join, handle-leave');
+  console.error('Commands: register, send, status, contacts, handle-create, handle-permission, handle-join, handle-leave');
   process.exit(1);
 }
 
@@ -219,8 +220,42 @@ switch (command) {
     break;
   }
 
+  case 'contacts': {
+    const [subCmd, ...subArgs] = args;
+    const configDir = findConfigDir(process.env.AGENT_CHAT_HANDLE);
+
+    switch (subCmd) {
+      case 'add': {
+        const [cHandle, ...labelParts] = subArgs;
+        const label = labelParts.join(' ');
+        if (!cHandle || !label) { console.error('Usage: send.js contacts add <handle> <label>'); process.exit(1); }
+        addContact(configDir, cHandle, label);
+        console.log(`Added @${cHandle} → "${label}"`);
+        break;
+      }
+      case 'remove': {
+        if (!subArgs[0]) { console.error('Usage: send.js contacts remove <handle>'); process.exit(1); }
+        const existed = removeContact(configDir, subArgs[0]);
+        console.log(existed ? `Removed @${subArgs[0]}` : `@${subArgs[0]} not found`);
+        break;
+      }
+      case 'list': {
+        const contacts = listContacts(configDir);
+        if (contacts.length === 0) { console.log('No contacts'); break; }
+        for (const c of contacts) {
+          console.log(`@${c.handle} → "${c.label}"${c.notes ? ` (${c.notes})` : ''}`);
+        }
+        break;
+      }
+      default:
+        console.error('Usage: send.js contacts <add|remove|list>');
+        process.exit(1);
+    }
+    break;
+  }
+
   default:
     console.error(`Unknown command: ${command}`);
-    console.error('Commands: register, send, status, handle-create, handle-permission, handle-join, handle-leave');
+    console.error('Commands: register, send, status, contacts, handle-create, handle-permission, handle-join, handle-leave');
     process.exit(1);
 }

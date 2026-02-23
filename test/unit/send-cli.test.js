@@ -174,3 +174,71 @@ describe('CLI argument parsing', () => {
 
 // Need readFileSync for key loading test
 import { readFileSync } from 'node:fs';
+
+describe('Contacts CLI', () => {
+  it('SEND-CONTACTS-001: contacts list on empty → "No contacts"', () => {
+    const out = execSync(`node scripts/send.js contacts list`, {
+      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      encoding: 'utf8'
+    });
+    assert.ok(out.includes('No contacts'));
+  });
+
+  it('SEND-CONTACTS-002: contacts add creates contact', () => {
+    const out = execSync(`node scripts/send.js contacts add alice Alice Test`, {
+      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      encoding: 'utf8'
+    });
+    assert.ok(out.includes('@alice'));
+    assert.ok(out.includes('Alice Test'));
+  });
+
+  it('SEND-CONTACTS-003: contacts list shows added contact', () => {
+    const out = execSync(`node scripts/send.js contacts list`, {
+      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      encoding: 'utf8'
+    });
+    assert.ok(out.includes('@alice'));
+    assert.ok(out.includes('Alice Test'));
+  });
+
+  it('SEND-CONTACTS-004: contacts remove deletes contact', () => {
+    const out = execSync(`node scripts/send.js contacts remove alice`, {
+      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      encoding: 'utf8'
+    });
+    assert.ok(out.includes('Removed @alice'));
+  });
+
+  it('SEND-CONTACTS-005: contacts remove non-existent → not found', () => {
+    const out = execSync(`node scripts/send.js contacts remove nobody`, {
+      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      encoding: 'utf8'
+    });
+    assert.ok(out.includes('not found'));
+  });
+
+  it('SEND-CONTACTS-006: contacts add without label → exit 1', () => {
+    try {
+      execSync(`node scripts/send.js contacts add bob`, {
+        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        stdio: 'pipe'
+      });
+      assert.fail('Should have exited with error');
+    } catch (err) {
+      assert.equal(err.status, 1);
+    }
+  });
+
+  it('SEND-CONTACTS-007: contacts unknown subcommand → exit 1', () => {
+    try {
+      execSync(`node scripts/send.js contacts unknown`, {
+        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        stdio: 'pipe'
+      });
+      assert.fail('Should have exited with error');
+    } catch (err) {
+      assert.equal(err.status, 1);
+    }
+  });
+});

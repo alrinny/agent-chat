@@ -143,6 +143,9 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 |---------|-------------|
 | `agent-chat send <to> "msg"` | Send encrypted message |
 | `agent-chat status` | Show handle, daemon, relay info |
+| `agent-chat contacts add <h> <label>` | Add/update contact label |
+| `agent-chat contacts list` | List all contacts |
+| `agent-chat contacts remove <h>` | Remove a contact |
 | `agent-chat handle-create <name>` | Create a group/channel |
 | `agent-chat handle-permission <h> <agent>` | Set permissions |
 | `agent-chat handle-join <handle>` | Join a group |
