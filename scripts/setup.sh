@@ -79,11 +79,11 @@ fi
 echo ""
 echo "📡 Registering @$HANDLE with relay ($RELAY)..."
 REG_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
-  node "$SCRIPT_DIR/send.js" register "$HANDLE" 2>&1)
+  node "$SCRIPT_DIR/send.js" register "$HANDLE" 2>&1) || true
 echo "$REG_RESULT"
 
 # Check if registration failed
-if echo "$REG_RESULT" | grep -q '"error"'; then
+if echo "$REG_RESULT" | grep -q '"error"\|Error'; then
   if echo "$REG_RESULT" | grep -q 'already taken'; then
     echo ""
     echo "⚠️  Handle @$HANDLE is already registered on the relay."
@@ -92,8 +92,13 @@ if echo "$REG_RESULT" | grep -q '"error"'; then
     echo "   2. If this is a fresh relay, ask the admin to clear the handle"
     echo ""
     echo "   Continuing with Telegram setup (daemon may fail to authenticate)..."
+  elif echo "$REG_RESULT" | grep -q 'Cannot connect\|timed out\|Cannot resolve'; then
+    echo ""
+    echo "❌ Cannot reach relay at $RELAY"
+    echo "   Check your internet connection and relay URL."
+    exit 1
   else
-    echo "❌ Registration failed. Check the error above." >&2
+    echo "❌ Registration failed." >&2
     exit 1
   fi
 fi

@@ -93,6 +93,66 @@ describe('setup.sh argument validation', () => {
   });
 });
 
+describe('setup.sh — idempotent key reuse', () => {
+  it('SETUP-REUSE-001: skips keygen if keys already exist', () => {
+    // CONFIG_DIR already has keys from the before() hook above
+    const out = execSync(
+      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1 || true`,
+      { encoding: 'utf8' }
+    );
+    assert.ok(out.includes('Existing keys found'), `Expected "Existing keys found" in: ${out.slice(0, 200)}`);
+    assert.ok(!out.includes('Generating keys'), `Should NOT regenerate keys`);
+  });
+
+  it('SETUP-REUSE-002: creates config.json even when reusing keys', () => {
+    // Delete config.json but keep keys
+    const configPath = join(CONFIG_DIR, 'config.json');
+    rmSync(configPath, { force: true });
+    assert.ok(!existsSync(configPath));
+
+    execSync(
+      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1 || true`,
+      { encoding: 'utf8' }
+    );
+    assert.ok(existsSync(configPath), 'config.json should be recreated');
+  });
+});
+
+describe('setup.sh — 409 handling', () => {
+  it('SETUP-409-001: fresh handle registers successfully', () => {
+    // Use random handle to avoid 409
+    const randomHandle = `test-${Date.now().toString(36)}`;
+    const out = execSync(
+      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
+      { encoding: 'utf8' }
+    );
+    assert.ok(out.includes('setup complete'), `Expected "setup complete", got: ${out.slice(0, 300)}`);
+    assert.ok(out.includes('Registered'), `Expected "Registered" confirmation`);
+  });
+
+  it('SETUP-409-002: duplicate handle shows warning, does not crash', () => {
+    // Re-run with same handle as SETUP-409-001 — should get 409 but not crash
+    // Use the base handle which was registered in the before() hook's relay call
+    const out = execSync(
+      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1`,
+      { encoding: 'utf8' }
+    );
+    assert.ok(out.includes('setup complete'), `Expected "setup complete" even on 409`);
+    assert.ok(out.includes('already taken') || out.includes('already registered') || out.includes('Registered'),
+      `Expected 409 warning or success, got: ${out.slice(0, 300)}`);
+  });
+
+  it('SETUP-409-003: unreachable relay gives clear error', () => {
+    const out = execSync(
+      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh unreachable-test 2>&1 || true`,
+      { encoding: 'utf8' }
+    );
+    // Should show network error, not stack trace
+    assert.ok(out.includes('Error') || out.includes('error') || out.includes('ECONNREFUSED'),
+      `Expected readable error, got: ${out.slice(0, 300)}`);
+  });
+});
+
 describe('Key roundtrip — generated keys work with crypto.js', () => {
   it('SETUP-KEYS-005: sign + verify with generated Ed25519 keys', async () => {
     const { signMessage, verifySignature } = await import('../../lib/crypto.js');

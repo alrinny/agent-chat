@@ -81,12 +81,34 @@ async function relayGet(path, handle, ed25519PrivateKey) {
   return res.json();
 }
 
+// --- Response helpers ---
+
+function checkRelay(result, context) {
+  if (result.error) {
+    console.error(`Error (${context}): ${result.error}`);
+    process.exit(1);
+  }
+  return result;
+}
+
+function printOk(result, context) {
+  if (result.error) {
+    console.error(`Error (${context}): ${result.error}`);
+    process.exit(1);
+  }
+  const extra = result.handle ? ` (@${result.handle})` : result.id ? ` [${result.id}]` : result.ids ? ` [${result.ids.length} sent]` : '';
+  console.log(`✅ ${context}${extra}`);
+  return result;
+}
+
 // --- Commands ---
 
 if (!command) {
   console.error('Commands: register, send, status, contacts, handle-create, handle-permission, handle-join, handle-leave');
   process.exit(1);
 }
+
+try {
 
 switch (command) {
   case 'register': {
@@ -108,7 +130,13 @@ switch (command) {
         sig
       })
     });
-    console.log(JSON.stringify(await res.json()));
+    const regResult = await res.json();
+    if (regResult.error) {
+      // Don't exit — setup.sh handles 409 specially
+      console.log(JSON.stringify(regResult));
+    } else {
+      printOk(regResult, 'Registered');
+    }
     break;
   }
 
@@ -121,7 +149,7 @@ switch (command) {
 
     // Get handle info (authenticated)
     const handleInfo = await relayGet(`/handle/info/${to}`, handle, keys.ed25519PrivateKey);
-    if (handleInfo.error) { console.error(handleInfo.error); process.exit(1); }
+    checkRelay(handleInfo, `lookup @${to}`);
 
     // DM = personal handle (owner === name)
     const isDM = handleInfo.owner === handleInfo.name;
@@ -139,7 +167,7 @@ switch (command) {
         senderSig: encrypted.senderSig,
         plaintextHash: encrypted.plaintextHash
       }, handle, keys.ed25519PrivateKey);
-      console.log(JSON.stringify(result));
+      printOk(result, `Sent to @${to}`);
     } else {
       // Group: encrypt per reader
       if (!handleInfo.readers) { console.error('No readers — you may not have write access'); process.exit(1); }
@@ -160,7 +188,7 @@ switch (command) {
       if (ciphertexts.length === 0) { console.error('No readers to send to'); process.exit(1); }
 
       const result = await relayPost('/send', { to, ciphertexts }, handle, keys.ed25519PrivateKey);
-      console.log(JSON.stringify(result));
+      printOk(result, `Sent to #${to}`);
     }
     break;
   }
@@ -184,7 +212,7 @@ switch (command) {
     const { handle, keys } = resolveHandleAndKeys();
 
     const result = await relayPost('/handle/create', { name, defaultWrite: write, defaultRead: read }, handle, keys.ed25519PrivateKey);
-    console.log(JSON.stringify(result));
+    printOk(result, `Created handle`);
     break;
   }
 
@@ -200,7 +228,7 @@ switch (command) {
     if (write) body.ownerWrite = write;
     if (read) body.ownerRead = read;
     const result = await relayPost('/handle/permission', body, handle, keys.ed25519PrivateKey);
-    console.log(JSON.stringify(result));
+    printOk(result, `Permission updated`);
     break;
   }
 
@@ -208,7 +236,7 @@ switch (command) {
     if (!args[0]) { console.error('Usage: send.js handle-join <handle>'); process.exit(1); }
     const { handle, keys } = resolveHandleAndKeys();
     const result = await relayPost('/handle/join', { handle: args[0] }, handle, keys.ed25519PrivateKey);
-    console.log(JSON.stringify(result));
+    printOk(result, `Joined handle`);
     break;
   }
 
@@ -216,7 +244,7 @@ switch (command) {
     if (!args[0]) { console.error('Usage: send.js handle-leave <handle>'); process.exit(1); }
     const { handle, keys } = resolveHandleAndKeys();
     const result = await relayPost('/handle/leave', { handle: args[0] }, handle, keys.ed25519PrivateKey);
-    console.log(JSON.stringify(result));
+    printOk(result, `Left handle`);
     break;
   }
 
@@ -258,4 +286,21 @@ switch (command) {
     console.error(`Unknown command: ${command}`);
     console.error('Commands: register, send, status, contacts, handle-create, handle-permission, handle-join, handle-leave');
     process.exit(1);
+}
+
+} catch (err) {
+  // Network errors: provide human-readable messages instead of stack traces
+  const cause = err.cause?.message || err.cause?.code || '';
+  if (err.name === 'TimeoutError') {
+    console.error(`Error: Connection to relay timed out (${RELAY})`);
+  } else if (cause.includes('ECONNREFUSED') || cause.includes('connect')) {
+    console.error(`Error: Cannot connect to relay at ${RELAY}`);
+  } else if (cause.includes('ENOTFOUND') || cause.includes('getaddrinfo')) {
+    console.error(`Error: Cannot resolve relay hostname (${RELAY})`);
+  } else if (err.message === 'fetch failed') {
+    console.error(`Error: Cannot reach relay at ${RELAY}${cause ? ' — ' + cause : ''}`);
+  } else {
+    console.error(`Error: ${err.message}`);
+  }
+  process.exit(1);
 }
