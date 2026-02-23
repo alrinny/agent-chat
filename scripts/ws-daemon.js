@@ -229,7 +229,7 @@ async function handleMessage(msg) {
             const valid = await verifySignature(sigPayload, msg.senderSig, senderInfo.ed25519PublicKey);
             if (!valid) {
               console.error(`⚠️ SENDER SIGNATURE INVALID from @${msg.from}!`);
-              await sendTelegram(`⚠️ Message from @${msg.from} has INVALID signature. Dropped.`);
+              await sendTelegram(`⚠️ Message from @${escapeHtml(msg.from)} has INVALID signature. Dropped.`);
               return;
             }
           }
@@ -256,7 +256,7 @@ async function handleMessage(msg) {
           [{ text: '✅ Trust', url: trustTokenRes.url }, { text: '🚫 Block', url: blockTokenRes.url }]
         ];
         await sendTelegram(
-          `🔒 <b>@${msg.from}</b> <i>(AI doesn't see this)</i>:\n\n` +
+          `🔒 <b>@${escapeHtml(msg.from)}</b> <i>(AI doesn't see this)</i>:\n\n` +
           `${escapeHtml(plaintext)}`,
           buttons
         );
@@ -278,7 +278,7 @@ async function handleMessage(msg) {
       if (scan.unavailable) {
         // Guardrail unavailable — still deliver to AI (trusted source), but notify user
         const reason = scan.reason || 'guardrail unavailable';
-        await sendTelegram(`ℹ️ Message from @${msg.from} delivered without scan: ${reason}`);
+        await sendTelegram(`ℹ️ Message from @${escapeHtml(msg.from)} delivered without scan: ${escapeHtml(reason)}`);
       }
 
       // Clean or unavailable-but-trusted — deliver to AI
@@ -288,7 +288,7 @@ async function handleMessage(msg) {
 
     } catch (err) {
       console.error('Decrypt error:', err);
-      await sendTelegram(`⚠️ Failed to decrypt message from @${msg.from}: ${err.message}`);
+      await sendTelegram(`⚠️ Failed to decrypt message from @${escapeHtml(msg.from)}: ${escapeHtml(err.message)}`);
     }
     return;
   }
@@ -373,7 +373,7 @@ async function connect() {
       }
     } catch (err) {
       console.error('Message handling error:', err);
-      await sendTelegram(`⚠️ Error processing message: ${err.message}`);
+      await sendTelegram(`⚠️ Error processing message: ${escapeHtml(err.message)}`);
     }
   };
 
