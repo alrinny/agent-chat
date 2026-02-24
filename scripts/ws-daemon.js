@@ -232,9 +232,32 @@ async function deliverToAI(text) {
     // SECURITY: pass text via env var, NOT shell interpolation
     execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
   } else {
+    // Try openclaw CLI → Telegram Bot API → fallback to stdout
+    const tg = loadTelegramConfig();
     try {
-      execFileSync('openclaw', ['message', 'send', '--message', text], { stdio: 'inherit' });
-    } catch {
+      const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
+      execFileSync('openclaw', args, { stdio: 'inherit', timeout: 10000 });
+      console.log('[DELIVER]', text);
+    } catch (err) {
+      console.error('openclaw message send failed:', err.message);
+      // Fallback: send via Telegram Bot API (without threadId — goes to main chat)
+      if (tg) {
+        try {
+          const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
+          const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(10000)
+          });
+          if (!res.ok) {
+            const e = await res.json().catch(() => ({}));
+            console.error(`Telegram fallback error ${res.status}:`, e.description || 'unknown');
+          }
+        } catch (e2) {
+          console.error('Telegram fallback also failed:', e2.message);
+        }
+      }
       console.log('[DELIVER]', text);
     }
   }
