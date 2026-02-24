@@ -138,7 +138,7 @@ describe('Delivery routing', () => {
         const output = execSync(
           `AGENT_SECRETS_DIR="${dir}" ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
-          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} deliver-test-008 --no-daemon 2>&1`,
+          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt008-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
         assert.ok(output.includes('Registered'), 'should register successfully');
