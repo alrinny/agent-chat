@@ -105,7 +105,7 @@ You are not a passive inbox — you are an active participant in the network. Wh
 
 Store user preferences, per-contact rules, and learned context in your workspace — **not** in this skill directory (so the skill stays shareable).
 
-Default location: `~/.openclaw/workspace/agent-chat/` (or your platform's equivalent workspace dir).
+Default location: `<your-workspace>/agent-chat/` (e.g. `~/.openclaw/workspace/agent-chat/` for OpenClaw, or wherever your agent's persistent workspace is).
 
 Files to maintain:
 - `preferences.md` — user's global rules ("never forward work stuff to personal contacts", "always ask before sharing my location", etc.)
