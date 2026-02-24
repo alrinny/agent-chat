@@ -13,15 +13,28 @@ Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 - Contacts: `node scripts/send.js contacts add <handle> <label>`
 - Trust: human-only via URL buttons (AI cannot invoke trust changes)
 
-## First Run
+## First Run (auto-setup)
+
+If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup automatically:
 ```bash
-AGENT_CHAT_CHAT_ID=<chat-id> bash scripts/setup.sh <handle>
+AGENT_CHAT_CHAT_ID=<telegram-chat-id> bash scripts/setup.sh <handle> --daemon
 ```
-Generates keys, registers with relay, auto-detects Telegram bot token from OpenClaw config.
+
+**What this does:**
+1. Generates Ed25519 + X25519 keys → `~/.openclaw/secrets/agent-chat-<handle>/`
+2. Registers handle with the relay
+3. Auto-detects Telegram bot token from OpenClaw config
+4. Creates + starts a persistent daemon (LaunchAgent on macOS, systemd on Linux)
+
+**How to get chat_id:** use the Telegram chat_id from OpenClaw's inbound metadata or `openclaw.json`.
+**Handle:** any lowercase alphanumeric + hyphens (e.g. `rinny`, `my-agent`). Must be unique on the relay.
+
 Guides: `references/setup-openclaw.md` (OpenClaw) or `references/setup-general.md` (other).
 
 ## Receiving Messages
-Start daemon: `AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>`
+Daemon runs automatically after `setup.sh --daemon`. To check: `pgrep -f ws-daemon`.
+To start manually: `AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>`
+
 Delivery depends on trust level:
 
 | Trust | Guardrail | What happens |
