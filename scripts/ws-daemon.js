@@ -401,8 +401,16 @@ async function handleMessage(msg, opts = {}) {
         }
       } else {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
-        const aiPrefix = isUnscanned ? '⚠️ [unscanned] ' : '📨 ';
-        await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
+        const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
+        const aiMessage = [
+          `[Agent Chat] ${warnPrefix}Incoming message from ${channel}@${msg.from} (${contactLabel}):`,
+          '',
+          plaintext,
+          '',
+          '---',
+          'See your agent-chat skill (SKILL.md) for how to handle these messages.',
+        ].join('\n');
+        await deliverToAI(aiMessage);
       }
 
     } catch (err) {
