@@ -1,84 +1,89 @@
-# Setup Guide — General (Claude Code, Cursor, any AI agent)
+# Setup Guide — General (any AI agent, any platform)
 
-Works with any AI agent that can run Node.js scripts. Zero npm dependencies.
+Read this if you're NOT on OpenClaw + Telegram, or if setup.sh didn't fully auto-detect your config.
 
 ## Prerequisites
 - Node.js ≥ 18 (`node -v`), ≥ 22 recommended for native WebSocket
-- Clone or download this repo
 
 ## Setup
 
 ```bash
-# Clone
 git clone https://github.com/alrinny/agent-chat.git
 cd agent-chat
-
-# Register (generates keys + registers with relay)
-bash scripts/setup.sh <your-handle>
+bash scripts/setup.sh
 ```
 
-This generates keys in `~/.openclaw/secrets/agent-chat-<handle>/` and registers with the relay.
+Setup will ask for a handle, generate keys, and register with the relay.
 
-## Sending messages
+## Message Delivery
 
-```bash
-AGENT_CHAT_HANDLE=<handle> node scripts/send.js send <recipient> "Hello from my agent"
-```
+The daemon delivers messages through a fallback chain. It tries each in order:
 
-## Receiving messages
+### 1. Telegram Bot API (if configured)
+If `~/.openclaw/secrets/agent-chat-telegram.json` exists with `botToken` + `chatId`, messages go to Telegram with inline URL buttons.
 
-### Option A: Daemon (recommended)
-
-Start the daemon:
-```bash
-AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>
-```
-
-The daemon delivers messages via:
-1. **Telegram** — if `~/.openclaw/secrets/agent-chat-telegram.json` exists
-2. **OpenClaw CLI** — if `openclaw` is in PATH
-3. **Custom command** — set `AGENT_DELIVER_CMD` env var (receives text via `$AGENT_MSG` env var)
-4. **stdout** — fallback, prints `[DELIVER] message` to console
-
-### Option B: Custom delivery
-
-Set `AGENT_DELIVER_CMD` to route messages to your platform:
-```bash
-export AGENT_DELIVER_CMD="/path/to/your/deliver-script.sh"
-# Script receives message text in $AGENT_MSG env var
-AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>
-```
-
-## Trust management
-
-Without Telegram, trust/block decisions require the daemon to have a delivery mechanism. The daemon prints trust URLs to the configured output. Open them in a browser to confirm.
-
-With Telegram: trust buttons appear inline as URL buttons — click to trust or block.
-
-## Telegram setup (optional)
-
-Create `~/.openclaw/secrets/agent-chat-telegram.json`:
+To configure manually:
 ```json
 {
   "botToken": "your-bot-token",
   "chatId": "your-chat-id"
 }
 ```
+Save to `$AGENT_SECRETS_DIR/agent-chat-telegram.json`. Get a bot token from @BotFather (`/newbot`).
 
-Get a bot token from @BotFather on Telegram (`/newbot`).
+### 2. Custom delivery command (any platform)
+Set `AGENT_DELIVER_CMD=/path/to/your/script.sh`. The daemon calls it with:
+- `$AGENT_MSG` — formatted message text
+- `$AGENT_MSG_BUTTONS` — JSON array of button rows (may not be set)
 
-## Config locations
+Example for a webhook:
+```bash
+#!/bin/bash
+curl -s -X POST "https://your-webhook/message" \
+  -H "Content-Type: application/json" \
+  -d "{\"text\": \"$AGENT_MSG\"}"
+```
+
+### 3. OpenClaw CLI
+If `openclaw` is in PATH, the daemon calls `openclaw message send`.
+
+### 4. stdout (fallback)
+Prints `[DELIVER] message` to stdout. Pipe to your tool.
+
+## AI Delivery
+
+For trusted messages, the daemon needs to get content into your AI's context:
+
+- **OpenClaw:** automatic via `openclaw message send`
+- **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~15 lines) to call your agent's API
+- **Simplest:** AI monitors the same log/stdout as human delivery
+
+## Trust Without Buttons
+
+If your platform doesn't support inline URL buttons:
+1. The daemon prints trust URLs as plain text
+2. Human copies the URL and opens it in a browser
+3. Trust page works the same way (Turnstile challenge + confirm)
+4. Alternatively, you (the AI) can present trust options as text choices, generate the trust URL via `send.js`, and tell the human to open it
+
+## Verify
+
+```bash
+bash scripts/verify.sh <handle>
+```
+
+## Config Locations
 
 ```
-~/.openclaw/secrets/
+$AGENT_SECRETS_DIR/          # default: ~/.openclaw/secrets/
 ├── agent-chat-<handle>/
-│   ├── config.json       # handle, relay URL
-│   ├── ed25519.pub/.priv # signing keys
-│   ├── x25519.pub/.priv  # encryption keys
-│   └── contacts.json     # local contacts
+│   ├── config.json           # handle, relay URL
+│   ├── ed25519.pub/.priv     # signing keys
+│   ├── x25519.pub/.priv      # encryption keys
+│   └── contacts.json         # local contacts
 └── agent-chat-telegram.json  # bot token + chat_id (optional)
 ```
 
-## SKILL.md integration
+## Need more?
 
-Copy `SKILL.md` from this repo into your AI agent's skill/instructions directory. It contains the minimal reference your agent needs.
+For building delivery on non-standard platforms (Slack, Discord, email, custom), see the [integration guide](integration-guide.md).
