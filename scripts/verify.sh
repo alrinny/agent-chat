@@ -138,7 +138,7 @@ fi
 echo "8. Self-test"
 if [ -n "$RELAY" ]; then
   echo "  → Sending test message to @$HANDLE..."
-  OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" node "$SCRIPT_DIR/send.js" send "$HANDLE" "verify.sh self-test $(date +%H:%M:%S)" 2>&1 || echo "SEND_FAILED")
+  OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" node "$SCRIPT_DIR/send.js" send "$HANDLE" "Test message to self" 2>&1 || echo "SEND_FAILED")
   if echo "$OUTPUT" | grep -q "Sent to"; then
     ok "Test message sent (check delivery in ~5s)"
   else
