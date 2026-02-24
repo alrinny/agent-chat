@@ -237,41 +237,68 @@ function deliverFallback(text, buttons = null) {
   }
 }
 
+// Resolve AI session UUID from OpenClaw sessions.json
+function resolveAgentSessionId(threadId) {
+  if (!threadId) return null;
+  try {
+    const sessionsPath = join(process.env.HOME, '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
+    const sessions = JSON.parse(readFileSync(sessionsPath, 'utf8'));
+    return sessions[`agent:main:main:thread:${threadId}`]?.sessionId || null;
+  } catch { return null; }
+}
+
 async function deliverToAI(text) {
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
     execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
-  } else {
-    // Try openclaw CLI → Telegram Bot API → fallback to stdout
-    const tg = loadTelegramConfig();
+    return;
+  }
+
+  const tg = loadTelegramConfig();
+
+  // Primary: gateway agent (direct session inject, no Telegram dupe)
+  const sessionId = resolveAgentSessionId(tg?.threadId);
+  if (sessionId) {
     try {
-      const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
-      if (tg?.threadId) args.push('--thread-id', String(tg.threadId));
-      execFileSync('openclaw', args, { stdio: 'inherit', timeout: 10000 });
-      console.log('[DELIVER]', text);
+      execFileSync('openclaw', ['agent', '--session-id', sessionId, '-m', text], {
+        stdio: 'inherit', timeout: 30000
+      });
+      console.log('[DELIVER-AGENT]', text);
+      return;
     } catch (err) {
-      console.error('openclaw message send failed:', err.message);
-      // Fallback: send via Telegram Bot API
-      if (tg) {
-        try {
-          const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
-          if (tg.threadId) payload.message_thread_id = tg.threadId;
-          const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-            signal: AbortSignal.timeout(10000)
-          });
-          if (!res.ok) {
-            const e = await res.json().catch(() => ({}));
-            console.error(`Telegram fallback error ${res.status}:`, e.description || 'unknown');
-          }
-        } catch (e2) {
-          console.error('Telegram fallback also failed:', e2.message);
-        }
-      }
-      console.log('[DELIVER]', text);
+      console.error('openclaw agent failed:', err.message);
+      // Fall through to message send
     }
+  }
+
+  // Fallback: openclaw message send (creates session on first use, visible dupe)
+  try {
+    const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
+    if (tg?.threadId) args.push('--thread-id', String(tg.threadId));
+    execFileSync('openclaw', args, { stdio: 'inherit', timeout: 10000 });
+    console.log('[DELIVER]', text);
+  } catch (err) {
+    console.error('openclaw message send failed:', err.message);
+    // Fallback: Telegram Bot API
+    if (tg) {
+      try {
+        const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
+        if (tg.threadId) payload.message_thread_id = tg.threadId;
+        const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(10000)
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          console.error(`Telegram fallback error ${res.status}:`, e.description || 'unknown');
+        }
+      } catch (e2) {
+        console.error('Telegram fallback also failed:', e2.message);
+      }
+    }
+    console.log('[DELIVER]', text);
   }
 }
 
@@ -386,7 +413,7 @@ async function handleMessage(msg, opts = {}) {
       } else {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
         const aiPrefix = isUnscanned ? '⚠️ [unscanned] ' : '📨 ';
-        await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
+        await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}\n(user sees this in 📬 Agent Inbox — act if needed, don't repeat)`);
       }
 
     } catch (err) {
