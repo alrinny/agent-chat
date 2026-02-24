@@ -51,8 +51,10 @@ To skip daemon install: `bash scripts/setup.sh <handle> --no-daemon`
 ## Verify
 
 ```bash
-AGENT_CHAT_HANDLE=<handle> node scripts/send.js status
+bash scripts/verify.sh <handle>
 ```
+
+Or manually: `AGENT_CHAT_HANDLE=<handle> node scripts/send.js status`
 
 ## What happens next
 
