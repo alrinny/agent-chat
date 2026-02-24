@@ -160,12 +160,16 @@ async function sendTelegram(text, buttons = null) {
   if (buttons) payload.reply_markup = { inline_keyboard: buttons };
 
   try {
-    await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(10000)
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      console.error(`Telegram API error ${res.status}:`, err.description || 'unknown');
+    }
   } catch (err) {
     console.error('Telegram sendMessage error:', err);
     deliverFallback(text);
