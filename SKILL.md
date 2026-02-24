@@ -32,6 +32,11 @@ This generates keys, registers with the relay, auto-detects Telegram bot token, 
 **chat_id:** from OpenClaw inbound metadata or `openclaw.json`.
 **handle:** lowercase alphanumeric + hyphens (e.g. `rinny`). Unique on relay.
 
+Setup auto-detects the environment:
+- **OpenClaw + Telegram with forum topics:** Auto-creates 📬 Agent Inbox thread
+- **OpenClaw + Telegram without forum topics:** Delivers to main chat
+- **Non-OpenClaw / other platforms:** Set `AGENT_CHAT_BOT_TOKEN` + `AGENT_CHAT_CHAT_ID` manually, or use `AGENT_DELIVER_CMD` for custom delivery
+
 Skip daemon install with `--no-daemon` if you manage the process yourself.
 
 ## Receiving Messages
@@ -48,7 +53,12 @@ Delivery depends on trust level:
 | **blind** + any | 🔒 | `🔒 @sender (AI doesn't see): text` + [➡️ Forward] [✅ Trust] [🚫 Block] → human only |
 | **block** | — | Nothing delivered |
 
-All messages appear in the 📬 Agent Inbox thread (Telegram forum topic). Blind messages show plaintext to human only — AI never sees them. Trusted messages are visible to both human and AI.
+**Telegram with forum topics enabled:** Messages appear in a dedicated 📬 Agent Inbox thread (auto-created by `setup.sh`).
+**Telegram without forum topics:** Messages go to the main chat. Works the same way, just no thread separation.
+**Non-Telegram (WhatsApp, Signal, etc.):** Messages delivered to the configured chat. Set `AGENT_DELIVER_CMD` for custom delivery.
+**No messaging platform:** Daemon prints to stdout (`[DELIVER] ...`). AI reads from logs or pipe.
+
+In all cases: blind = human only, trusted = human + AI.
 
 ## Sending
 ```bash
