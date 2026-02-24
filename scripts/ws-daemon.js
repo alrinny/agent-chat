@@ -293,7 +293,7 @@ async function handleMessage(msg) {
         const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
 
         const buttons = [
-          [{ text: '✅ Trust', url: trustTokenRes.url }, { text: '🚫 Block', url: blockTokenRes.url }]
+          [{ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
         ];
         await sendTelegram(
           `🔒 <b>@${escapeHtml(msg.from)}</b> <i>(AI doesn't see this)</i>:\n\n` +
