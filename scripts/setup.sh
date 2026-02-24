@@ -221,6 +221,16 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   CONFIG_FILE="$SECRETS_DIR/agent-chat-telegram.json"
   TGCONFIG="{\"botToken\":\"$BOT_TOKEN\",\"chatId\":\"$CHAT_ID\""
 
+  # Check if threadId already exists in saved config
+  if [ -z "$THREAD_ID" ] && [ -f "$CONFIG_FILE" ]; then
+    THREAD_ID=$(node -e "
+      try { const c = JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8')); if (c.threadId) process.stdout.write(String(c.threadId)); } catch {}
+    " 2>/dev/null || true)
+    if [ -n "$THREAD_ID" ]; then
+      echo "🔍 Reusing existing thread (ID: $THREAD_ID)"
+    fi
+  fi
+
   # Auto-create Agent Inbox forum topic if no thread_id provided
   if [ -z "$THREAD_ID" ]; then
     echo "Creating 📬 Agent Inbox thread..."
