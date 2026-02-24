@@ -237,16 +237,9 @@ function deliverFallback(text, buttons = null) {
   }
 }
 
-// Resolve AI session UUID from OpenClaw sessions.json
-function resolveAgentSessionId(threadId) {
-  if (!threadId) return null;
-  try {
-    const sessionsPath = join(process.env.HOME, '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
-    const sessions = JSON.parse(readFileSync(sessionsPath, 'utf8'));
-    return sessions[`agent:main:main:thread:${threadId}`]?.sessionId || null;
-  } catch { return null; }
-}
-
+// Deliver a message to the AI agent via openclaw agent --local --deliver.
+// Uses a fixed session-id so it works immediately after setup (no sessions.json dependency).
+// AI receives the message with full workspace/skills/memory context and responds in the thread.
 async function deliverToAI(text) {
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
@@ -256,52 +249,45 @@ async function deliverToAI(text) {
 
   const tg = loadTelegramConfig();
 
-  // Primary: openclaw agent --deliver --channel telegram
-  // AI receives the message, processes it, and replies directly in the thread.
-  // Uses an isolated agent turn but with full workspace/skills/memory context.
-  const sessionId = resolveAgentSessionId(tg?.threadId);
-  if (sessionId) {
-    try {
-      const args = ['agent', '--session-id', sessionId, '-m', text,
-        '--deliver', '--channel', 'telegram'];
-      if (tg?.chatId) args.push('--reply-to', String(tg.chatId));
-      execFileSync('openclaw', args, { stdio: 'inherit', timeout: 60000 });
-      console.log('[DELIVER-AGENT]', text);
-      return;
-    } catch (err) {
-      console.error('openclaw agent --deliver failed:', err.message);
-      // Fall through to message send
+  // Primary: openclaw agent --local --deliver --channel telegram
+  // Fixed session-id "agent-chat-inbox" — no dependency on sessions.json.
+  // --local runs embedded agent (required for --deliver to work; gateway path doesn't deliver).
+  // --deliver sends AI's reply to the Telegram thread.
+  try {
+    const args = ['agent', '--local', '--session-id', 'agent-chat-inbox', '-m', text,
+      '--deliver', '--channel', 'telegram'];
+    // Build reply-to target with :topic: syntax for thread delivery
+    if (tg?.chatId) {
+      const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
+      args.push('--reply-to', target);
     }
+    execFileSync('openclaw', args, { stdio: 'inherit', timeout: 120000 });
+    console.log('[DELIVER-AGENT]', text);
+    return;
+  } catch (err) {
+    console.error('openclaw agent --local failed:', err.message);
   }
 
-  // Fallback: openclaw message send (human sees in thread, AI does not)
-  try {
-    const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
-    if (tg?.threadId) args.push('--thread-id', String(tg.threadId));
-    execFileSync('openclaw', args, { stdio: 'inherit', timeout: 10000 });
-    console.log('[DELIVER-FALLBACK]', text);
-  } catch (err) {
-    console.error('openclaw message send failed:', err.message);
-    // Last resort: Telegram Bot API direct
-    if (tg) {
-      try {
-        const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
-        if (tg.threadId) payload.message_thread_id = tg.threadId;
-        const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(10000)
-        });
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}));
-          console.error(`Telegram fallback error ${res.status}:`, e.description || 'unknown');
-        }
-      } catch (e2) {
-        console.error('Telegram fallback also failed:', e2.message);
+  // Fallback: Telegram Bot API direct (human sees in thread, AI does not)
+  if (tg) {
+    try {
+      const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
+      if (tg.threadId) payload.message_thread_id = tg.threadId;
+      const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        console.error(`Telegram fallback error ${res.status}:`, e.description || 'unknown');
+      } else {
+        console.log('[DELIVER-FALLBACK]', text);
       }
+    } catch (e2) {
+      console.error('Telegram fallback also failed:', e2.message);
     }
-    console.log('[DELIVER]', text);
   }
 }
 
