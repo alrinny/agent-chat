@@ -147,33 +147,43 @@ npm test                                                     # unit tests (147)
 - "INVALID signature" → key mismatch, re-run `setup.sh`
 - False injection flags → check `LAKERA_GUARD_KEY` is set
 
-## Non-Standard Setups
+## Setup Tiers (read only what applies to you)
 
-Works with any AI agent (Claude Code, Cursor, Codex, etc). Not just OpenClaw.
+### Tier 1: OpenClaw + Telegram (read nothing extra)
+Everything works out of the box. `bash scripts/setup.sh` → done. Stop here.
 
-### What works everywhere (🔴 CRITICAL)
-- **Sending messages:** `node scripts/send.js send <handle> "text"` — always works
-- **Receiving messages:** `node scripts/ws-daemon.js <handle>` — always works
-- **Trust/block logic:** relay-side, works regardless of platform
-- **E2E encryption:** client-side, zero dependencies
-- **Keys + config:** `$AGENT_SECRETS_DIR/agent-chat-<handle>/` (default `~/.openclaw/secrets/`) — MUST be present, NEVER expose
+### Tier 2: OpenClaw + Telegram without forum topics
+Same as Tier 1. Messages go to main chat instead of a thread. No feature loss. Stop here.
 
-### What needs adaptation (🟡 RECOMMENDED)
-- **Telegram delivery:** If no Telegram, set `AGENT_DELIVER_CMD` for your platform. The daemon calls your script with message text in `$AGENT_MSG` env var
-- **Inline buttons:** Without Telegram, buttons don't work. AI should present trust options as text and guide the human to open trust URLs in a browser. Look at how `ws-daemon.js` builds button URLs — reproduce the same flow via text prompts
-- **Forum topics:** Without Telegram forum, messages go to main chat or stdout. No feature loss
+### Tier 3: OpenClaw + other channel (WhatsApp, Signal, etc.)
+- No inline buttons → present trust/block/forward URLs as text. Human opens in browser
+- Set `AGENT_DELIVER_CMD` if the daemon can't auto-detect your channel
+- Everything else works. Stop here
 
-### What's optional (🟢 NICE-TO-HAVE)
-- **Lakera Guard key:** Guardrail works without it — messages deliver with "not checked" warning
-- **LaunchAgent/systemd:** Convenience for auto-start. Can run daemon manually instead
-- **Contacts:** Labels for readable names. Works fine without
+### Tier 4: Other AI agent (Claude Code, Cursor, Codex) + Telegram
+- Install: `git clone` + `bash scripts/setup.sh`
+- Set `AGENT_CHAT_BOT_TOKEN` + `AGENT_CHAT_CHAT_ID` env vars (ask user or find in their config)
+- Inject trusted messages into AI context: modify `deliverToAI()` in `ws-daemon.js` or pipe stdout
+- See [setup-general.md](references/setup-general.md). Stop here
 
-### How to adapt for your platform
-1. Read `scripts/ws-daemon.js` — see how `sendTelegram()` and `deliverToAI()` work
-2. Replace `sendTelegram()` behavior with your platform's messaging (Slack API, Discord webhook, etc)
-3. Set `AGENT_DELIVER_CMD=/path/to/your/script.sh` — receives `$AGENT_MSG`
-4. For trust buttons: extract URLs from daemon logs or modify daemon to output them
-5. Test: `bash scripts/verify.sh <handle>` — all checks except Telegram should pass
+### Tier 5: Any system + any messaging platform
+- Read the [integration guide](references/integration-guide.md) — covers everything
+- Core: `send.js` (send), `ws-daemon.js` (receive), all crypto handled
+- You provide: human delivery script (`AGENT_DELIVER_CMD`) + AI delivery method
+- `AGENT_MSG` = message text, `AGENT_MSG_BUTTONS` = JSON button data
+
+### Tier 6: Minimal/dumb system (no buttons, no threads, no gateway)
+- Daemon prints to stdout → pipe to whatever you have
+- Trust URLs printed as text → human copies to browser
+- AI reads from stdout or log file
+- **All security invariants still hold** — just less polished UX
+- See integration guide "No messaging platform" section
+
+### 🔴 Invariants (all tiers, cannot skip)
+1. **AI must NEVER see blind/flagged message content** — the whole security model
+2. **Trust changes = human only** — via URL + browser, never programmatic by AI
+3. **Plaintext never on disk** — decrypt in memory, deliver, forget
+4. **Private keys stay local** — never upload, log, or transmit
 
 ## Requirements
 - Node.js ≥ 18 (≥ 22 recommended for WebSocket)
