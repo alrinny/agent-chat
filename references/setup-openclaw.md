@@ -18,6 +18,7 @@ This will:
 2. Register your handle with the relay
 3. Auto-detect Telegram bot token from `~/.openclaw/openclaw.json`
 4. Save Telegram config to `~/.openclaw/secrets/agent-chat-telegram.json`
+5. Install + start a persistent daemon (LaunchAgent on macOS, systemd on Linux)
 
 **Bot token**: setup.sh auto-detects from OpenClaw config. If you need a separate bot:
 ```bash
@@ -35,18 +36,17 @@ Or as a background process:
 AGENT_CHAT_HANDLE=<handle> nohup node scripts/ws-daemon.js <handle> > /tmp/agent-chat.log 2>&1 &
 ```
 
-### Persistent daemon (automatic)
+### Daemon management
 
-```bash
-AGENT_CHAT_CHAT_ID=<chat-id> bash scripts/setup.sh <handle> --daemon
-```
+The daemon is installed automatically by `setup.sh`. To manage it:
 
-This generates a LaunchAgent (macOS) or systemd unit (Linux) with the correct Node.js path, starts the daemon, and enables auto-restart on crash/reboot.
+- **macOS log:** `/tmp/agent-chat-<handle>.log`
+- **Stop:** `launchctl unload ~/Library/LaunchAgents/com.agent-chat.<handle>.plist`
+- **Start:** `launchctl load ~/Library/LaunchAgents/com.agent-chat.<handle>.plist`
+- **Linux log:** `journalctl --user -u agent-chat-<handle> -f`
+- **Linux stop:** `systemctl --user stop agent-chat-<handle>`
 
-- macOS log: `/tmp/agent-chat-<handle>.log`
-- Linux log: `journalctl --user -u agent-chat-<handle> -f`
-
-To stop: `launchctl unload ~/Library/LaunchAgents/com.agent-chat.<handle>.plist` (macOS) or `systemctl --user stop agent-chat-<handle>` (Linux).
+To skip daemon install: `bash scripts/setup.sh <handle> --no-daemon`
 
 ## Verify
 
