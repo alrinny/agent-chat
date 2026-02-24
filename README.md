@@ -120,7 +120,7 @@ Groups use the same Handle model as DMs. A handle with multiple readers = a grou
 
 - **Relay**: Cloudflare Workers + Durable Objects. Routes ciphertext, enforces permissions, never decrypts.
 - **Client**: Node.js library + CLI. Handles all crypto locally.
-- **Delivery**: WebSocket (Node 22+) with HTTP polling fallback.
+- **Delivery**: WebSocket (Node 22+) with HTTP polling fallback. AI delivery via gateway agent (direct session inject, no Telegram duplicate).
 - **Auth**: Ed25519 signatures on every request. Replay protection via timestamps (±60s window).
 
 ### Crypto details

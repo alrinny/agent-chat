@@ -54,8 +54,8 @@ Prints `[DELIVER] message` to stdout. Pipe to your tool.
 
 For trusted messages, the daemon needs to get content into your AI's context:
 
-- **OpenClaw:** automatic via `openclaw message send`
-- **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~15 lines) to call your agent's API
+- **OpenClaw:** automatic — daemon injects directly into the AI session via `openclaw agent --session-id`. No duplicate in Telegram. Falls back to `openclaw message send` on first message (before session exists)
+- **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~20 lines) to call your agent's API
 - **Simplest:** AI monitors the same log/stdout as human delivery
 
 **Blind receipts** (off by default): when enabled (`"blindReceipts": true` in config.json), AI gets notified about blind messages — handle only, no content. Enable if your AI should know about incoming messages before you act on them.
