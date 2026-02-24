@@ -407,9 +407,27 @@ async function connect() {
     }
   });
 
-  ws.onopen = () => {
+  ws.onopen = async () => {
     console.log('Connected + authenticated ✅');
     reconnectDelay = 1000;
+
+    // Fetch messages accumulated while disconnected (one-time, not polling)
+    try {
+      const { messages } = await relayGet(`/inbox/${handle}`);
+      if (messages?.length) {
+        for (const msg of messages) {
+          await handleMessage({ type: msg.type || 'message', ...msg });
+        }
+        // Ack only trusted (blind stays for redeliver)
+        const trustedIds = messages.filter(m => m.effectiveRead === 'trusted' || m.type === 'system').map(m => m.id);
+        if (trustedIds.length > 0) {
+          await relayPost('/inbox/ack', { ids: trustedIds });
+        }
+        console.log(`Processed ${messages.length} queued messages`);
+      }
+    } catch (err) {
+      console.error('Inbox fetch on connect error:', err);
+    }
   };
 
   ws.onmessage = async (event) => {
