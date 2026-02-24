@@ -296,6 +296,8 @@ async function handleMessage(msg) {
             if (!valid) {
               console.error(`⚠️ SENDER SIGNATURE INVALID from @${msg.from}!`);
               await sendTelegram(`⚠️ Message from @${escapeHtml(msg.from)} has INVALID signature. Dropped.`);
+              // Add to dedup so we don't report the same invalid msg on every restart
+              if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
               return;
             }
           }
