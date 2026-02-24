@@ -28,6 +28,13 @@ const LAKERA_KEY = process.env.LAKERA_GUARD_KEY;
 
 const CONFIG_DIR = handle ? join(SECRETS_DIR, `agent-chat-${handle}`) : null;
 
+// Load handle config for optional features
+function loadHandleConfig() {
+  if (!CONFIG_DIR) return {};
+  try { return JSON.parse(readFileSync(join(CONFIG_DIR, 'config.json'), 'utf8')); } catch { return {}; }
+}
+const BLIND_RECEIPTS = loadHandleConfig().blindReceipts === true;
+
 // Load keys once at startup (deferred for testability)
 function loadKeys() {
   if (!CONFIG_DIR) return null;
@@ -230,23 +237,12 @@ function deliverFallback(text, buttons = null) {
   }
 }
 
-async function deliverToAI(text, { silent = false } = {}) {
+async function deliverToAI(text) {
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
-    const env = { ...process.env, AGENT_MSG: text };
-    if (silent) env.AGENT_MSG_SILENT = '1';
-    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env });
-  } else if (silent) {
-    // Silent delivery: directly to AI via gateway, not visible in Telegram
-    try {
-      execFileSync('openclaw', ['agent', '-m', text], { stdio: 'inherit', timeout: 10000 });
-      console.log('[DELIVER-SILENT]', text);
-    } catch (err) {
-      // Fallback: stdout only (don't send to Telegram for silent messages)
-      console.log('[DELIVER-SILENT]', text);
-    }
+    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
   } else {
-    // Visible delivery: openclaw message send → Telegram → AI
+    // Try openclaw CLI → Telegram Bot API → fallback to stdout
     const tg = loadTelegramConfig();
     try {
       const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
@@ -382,7 +378,11 @@ async function handleMessage(msg, opts = {}) {
       // AI delivery
       if (aiExcluded) {
         const reason = isFlagged ? 'flagged' : 'blind';
-        await deliverToAI(`🔒 @${msg.from} — new message (${reason})`, { silent: true });
+        if (BLIND_RECEIPTS) {
+          await deliverToAI(`🔒 @${msg.from} — new message (${reason})`);
+        } else {
+          console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
+        }
       } else {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
         const aiPrefix = isUnscanned ? '⚠️ [unscanned] ' : '📨 ';
