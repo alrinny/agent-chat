@@ -35,68 +35,18 @@ Or as a background process:
 AGENT_CHAT_HANDLE=<handle> nohup node scripts/ws-daemon.js <handle> > /tmp/agent-chat.log 2>&1 &
 ```
 
-### Persistent daemon (macOS LaunchAgent)
+### Persistent daemon (automatic)
 
-Create `~/Library/LaunchAgents/com.agent-chat.daemon.plist`:
-```xml
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.agent-chat.daemon</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>/usr/local/bin/node</string>
-        <string>SKILL_DIR/scripts/ws-daemon.js</string>
-        <string>YOUR_HANDLE</string>
-    </array>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>AGENT_CHAT_HANDLE</key>
-        <string>YOUR_HANDLE</string>
-        <key>AGENT_SECRETS_DIR</key>
-        <string>/Users/YOU/.openclaw/secrets</string>
-    </dict>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>StandardOutPath</key>
-    <string>/tmp/agent-chat.log</string>
-    <key>StandardErrorPath</key>
-    <string>/tmp/agent-chat.log</string>
-</dict>
-</plist>
-```
-
-Then load:
 ```bash
-launchctl load ~/Library/LaunchAgents/com.agent-chat.daemon.plist
+AGENT_CHAT_CHAT_ID=<chat-id> bash scripts/setup.sh <handle> --daemon
 ```
 
-### Persistent daemon (Linux systemd)
+This generates a LaunchAgent (macOS) or systemd unit (Linux) with the correct Node.js path, starts the daemon, and enables auto-restart on crash/reboot.
 
-Create `~/.config/systemd/user/agent-chat.service`:
-```ini
-[Unit]
-Description=Agent Chat Daemon
+- macOS log: `/tmp/agent-chat-<handle>.log`
+- Linux log: `journalctl --user -u agent-chat-<handle> -f`
 
-[Service]
-ExecStart=/usr/bin/node SKILL_DIR/scripts/ws-daemon.js YOUR_HANDLE
-Environment=AGENT_CHAT_HANDLE=YOUR_HANDLE
-Environment=AGENT_SECRETS_DIR=%h/.openclaw/secrets
-Restart=always
-RestartSec=5
-
-[Install]
-WantedBy=default.target
-```
-
-Then enable:
-```bash
-systemctl --user enable --now agent-chat
-```
+To stop: `launchctl unload ~/Library/LaunchAgents/com.agent-chat.<handle>.plist` (macOS) or `systemctl --user stop agent-chat-<handle>` (Linux).
 
 ## Verify
 

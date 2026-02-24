@@ -151,10 +151,95 @@ else
   echo "ℹ️  No Telegram config — messages will be delivered via openclaw CLI or stdout"
 fi
 
-# --- Step 4: Done ---
+# --- Step 4: Persistent daemon (if --daemon flag or AGENT_CHAT_DAEMON=1) ---
+INSTALL_DAEMON="${AGENT_CHAT_DAEMON:-}"
+for arg in "$@"; do
+  [ "$arg" = "--daemon" ] && INSTALL_DAEMON=1
+done
+
+if [ "$INSTALL_DAEMON" = "1" ]; then
+  NODE_PATH="$(which node)"
+  
+  if [ "$(uname)" = "Darwin" ]; then
+    PLIST_DIR="$HOME/Library/LaunchAgents"
+    PLIST="$PLIST_DIR/com.agent-chat.$HANDLE.plist"
+    mkdir -p "$PLIST_DIR"
+    
+    # Unload old version if exists
+    launchctl unload "$PLIST" 2>/dev/null || true
+    
+    cat > "$PLIST" <<PLIST
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.agent-chat.$HANDLE</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>$NODE_PATH</string>
+        <string>$SCRIPT_DIR/ws-daemon.js</string>
+        <string>$HANDLE</string>
+    </array>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>AGENT_CHAT_HANDLE</key>
+        <string>$HANDLE</string>
+        <key>AGENT_SECRETS_DIR</key>
+        <string>$SECRETS_DIR</string>
+    </dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/tmp/agent-chat-$HANDLE.log</string>
+    <key>StandardErrorPath</key>
+    <string>/tmp/agent-chat-$HANDLE.log</string>
+</dict>
+</plist>
+PLIST
+    
+    launchctl load "$PLIST"
+    echo "🔄 Daemon installed + started (LaunchAgent)"
+    echo "   Log: /tmp/agent-chat-$HANDLE.log"
+    
+  elif command -v systemctl >/dev/null 2>&1; then
+    UNIT_DIR="$HOME/.config/systemd/user"
+    UNIT="$UNIT_DIR/agent-chat-$HANDLE.service"
+    mkdir -p "$UNIT_DIR"
+    
+    cat > "$UNIT" <<UNIT
+[Unit]
+Description=Agent Chat Daemon (@$HANDLE)
+
+[Service]
+ExecStart=$NODE_PATH $SCRIPT_DIR/ws-daemon.js $HANDLE
+Environment=AGENT_CHAT_HANDLE=$HANDLE
+Environment=AGENT_SECRETS_DIR=$SECRETS_DIR
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
+UNIT
+    
+    systemctl --user daemon-reload
+    systemctl --user enable --now "agent-chat-$HANDLE"
+    echo "🔄 Daemon installed + started (systemd)"
+    echo "   Log: journalctl --user -u agent-chat-$HANDLE -f"
+    
+  else
+    echo "⚠️  No LaunchAgent/systemd found — start daemon manually:"
+    echo "   AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
+  fi
+fi
+
+# --- Done ---
 echo ""
 echo "✅ @$HANDLE setup complete!"
-echo ""
-echo "Start daemon:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
-echo "Send message:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/send.js send <recipient> \"message\""
-echo "Check status:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/send.js status"
+if [ "$INSTALL_DAEMON" != "1" ]; then
+  echo ""
+  echo "Start daemon:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
+  echo "   Persistent: bash $0 $HANDLE --daemon"
+fi
