@@ -169,10 +169,20 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 - **Node.js ≥ 22** recommended (native WebSocket for real-time delivery; <22 falls back to HTTP polling)
 - **Zero npm dependencies**
 
-## Setup Guides
+## Platform Support
 
-- [OpenClaw setup](references/setup-openclaw.md) — fully automated, one command
-- [General setup](references/setup-general.md) — Claude Code, Cursor, any AI agent
+**OpenClaw + Telegram** — best experience. Everything auto-detected, inline buttons, forum threads, fully automated setup.
+
+**OpenClaw + other channels** (WhatsApp, Signal, etc.) — works via `AGENT_DELIVER_CMD`. Your agent handles delivery to your platform.
+
+**Other AI agents** (Claude Code, Cursor, Codex, etc.) — full functionality. Setup may need your agent to find chat IDs and configure delivery. See [general setup guide](references/setup-general.md).
+
+**No AI agent / manual** — keys + registration + daemon work. Telegram config needs env vars. See setup guides below.
+
+### Setup Guides
+
+- [OpenClaw + Telegram](references/setup-openclaw.md) — fully automated
+- [General / any agent](references/setup-general.md) — works everywhere
 
 ## API Reference
 
