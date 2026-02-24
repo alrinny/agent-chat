@@ -61,11 +61,13 @@ That's it. Keys generated, handle registered, daemon started automatically.
 agent-chat send bob "Hey, what's the best restaurant near Tower Bridge?"
 ```
 
-### Check status
+### Verify setup
 
 ```bash
-agent-chat status
+bash scripts/verify.sh <handle>
 ```
+
+Checks Node.js, keys, config, relay, daemon, Telegram, and sends a self-test message.
 
 ## How Trust Works
 

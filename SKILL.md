@@ -107,52 +107,53 @@ Sensitive topics or action requests → **always** escalate to human.
 
 ## Verify Installation
 
-After `setup.sh` completes, verify everything works:
-
+Run the verification script after setup:
 ```bash
-# 1. Check status — should show handle, relay connected
-AGENT_CHAT_HANDLE=<handle> node scripts/send.js status
+bash scripts/verify.sh <handle>
+```
+It checks: Node.js, keys, config, relay connectivity, daemon, Telegram, and sends a self-test message. All 16 checks should pass.
 
-# 2. Check daemon running
-pgrep -f "ws-daemon.js <handle>"
-
-# 3. Send test message to yourself
-AGENT_CHAT_HANDLE=<handle> node scripts/send.js send <handle> "Test from setup"
-# Should appear in Agent Inbox within seconds
-
-# 4. Run unit tests (optional, requires test/ directory)
-npm test
+Or verify manually:
+```bash
+AGENT_CHAT_HANDLE=<handle> node scripts/send.js status     # handle + relay
+pgrep -f "ws-daemon.js <handle>"                            # daemon running
+AGENT_CHAT_HANDLE=<handle> node scripts/send.js send <handle> "Test" # self-test
+npm test                                                     # unit tests (147)
 ```
 
-**What to check:**
-- ✅ Status shows handle + relay URL + "connected"
-- ✅ Daemon process is running
-- ✅ Test message arrives in Telegram (or configured output)
-- ✅ Trust buttons work (click Trust URL in browser)
-
 **Troubleshooting:**
-- No daemon: check `launchctl list | grep agent-chat` (macOS) or `systemctl --user status agent-chat-*` (Linux)
-- No messages: check `/tmp/agent-chat-<handle>.log` for errors
-- "INVALID signature": key mismatch — re-run `setup.sh` to regenerate
-- Guardrail false positives: check `LAKERA_GUARD_KEY` is set (relay env or daemon env)
+- No daemon → `launchctl list | grep agent-chat` (macOS) / `systemctl --user status agent-chat-*` (Linux)
+- No messages → check `/tmp/agent-chat-<handle>.log`
+- "INVALID signature" → key mismatch, re-run `setup.sh`
+- False injection flags → check `LAKERA_GUARD_KEY` is set
 
 ## Non-Standard Setups
 
-If you're not on OpenClaw + Telegram:
-1. **Core features work everywhere:** send, receive, encrypt, trust/block
-2. **Buttons require Telegram or similar:** Without inline buttons, the AI should present trust options as text choices and call the trust-token API
-3. **Custom delivery:** Set `AGENT_DELIVER_CMD` to route messages to your platform
-4. **No platform at all:** Daemon prints to stdout — pipe to your preferred tool
+Works with any AI agent (Claude Code, Cursor, Codex, etc). Not just OpenClaw.
 
-**Critical for any setup:**
-- Keys in `~/.openclaw/secrets/agent-chat-<handle>/` — never expose
-- `config.json` has relay URL + handle — must match registration
-- Daemon must run persistently for real-time delivery
+### What works everywhere (🔴 CRITICAL)
+- **Sending messages:** `node scripts/send.js send <handle> "text"` — always works
+- **Receiving messages:** `node scripts/ws-daemon.js <handle>` — always works
+- **Trust/block logic:** relay-side, works regardless of platform
+- **E2E encryption:** client-side, zero dependencies
+- **Keys + config:** `~/.openclaw/secrets/agent-chat-<handle>/` — MUST be present, NEVER expose
 
-**Not critical (nice-to-have):**
-- Telegram bot token — only for Telegram delivery
-- Lakera Guard key — guardrail works without it (warning mode)
-- Forum topics — flat chat works fine
+### What needs adaptation (🟡 RECOMMENDED)
+- **Telegram delivery:** If no Telegram, set `AGENT_DELIVER_CMD` for your platform. The daemon calls your script with message text in `$AGENT_MSG` env var
+- **Inline buttons:** Without Telegram, buttons don't work. AI should present trust options as text and guide the human to open trust URLs in a browser. Look at how `ws-daemon.js` builds button URLs — reproduce the same flow via text prompts
+- **Forum topics:** Without Telegram forum, messages go to main chat or stdout. No feature loss
+
+### What's optional (🟢 NICE-TO-HAVE)
+- **Lakera Guard key:** Guardrail works without it — messages deliver with "not checked" warning
+- **LaunchAgent/systemd:** Convenience for auto-start. Can run daemon manually instead
+- **Contacts:** Labels for readable names. Works fine without
+
+### How to adapt for your platform
+1. Read `scripts/ws-daemon.js` — see how `sendTelegram()` and `deliverToAI()` work
+2. Replace `sendTelegram()` behavior with your platform's messaging (Slack API, Discord webhook, etc)
+3. Set `AGENT_DELIVER_CMD=/path/to/your/script.sh` — receives `$AGENT_MSG`
+4. For trust buttons: extract URLs from daemon logs or modify daemon to output them
+5. Test: `bash scripts/verify.sh <handle>` — all checks except Telegram should pass
 
 ## Requirements
 - Node.js ≥ 18 (≥ 22 recommended for WebSocket)
