@@ -14,7 +14,7 @@ import {
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL } from '../lib/config.js';
 import { loadContacts } from '../lib/contacts.js';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 
@@ -46,7 +46,49 @@ let keys = null;
 // --- In-memory state ---
 
 // Deduplication: track processed message IDs to avoid duplicate notifications
+// Persisted to disk so daemon restarts don't re-deliver blind messages
+const DEDUP_MAX_ENTRIES = 10000;
+const DEDUP_PRUNE_TO = 5000;
+
 const processedMessageIds = new Set();  // "msgId:effectiveRead" → processed
+
+function getDedupPath() {
+  return CONFIG_DIR ? join(CONFIG_DIR, 'dedup.json') : null;
+}
+
+function loadDedupState() {
+  const p = getDedupPath();
+  if (!p) return;
+  try {
+    if (existsSync(p)) {
+      const arr = JSON.parse(readFileSync(p, 'utf8'));
+      if (Array.isArray(arr)) {
+        // Load only the last DEDUP_MAX_ENTRIES to prevent growth
+        const start = Math.max(0, arr.length - DEDUP_MAX_ENTRIES);
+        for (let i = start; i < arr.length; i++) {
+          processedMessageIds.add(arr[i]);
+        }
+      }
+    }
+  } catch { /* corrupt file — start fresh */ }
+}
+
+function saveDedupState() {
+  const p = getDedupPath();
+  if (!p) return;
+  try {
+    let arr = [...processedMessageIds];
+    // Prune if over limit
+    if (arr.length > DEDUP_MAX_ENTRIES) {
+      arr = arr.slice(arr.length - DEDUP_PRUNE_TO);
+      processedMessageIds.clear();
+      arr.forEach(id => processedMessageIds.add(id));
+    }
+    writeFileSync(p, JSON.stringify(arr));
+  } catch (err) {
+    console.error('Dedup save error:', err);
+  }
+}
 
 // --- Telegram config ---
 
@@ -211,13 +253,7 @@ async function handleMessage(msg) {
     if (msg.id && processedMessageIds.has(dedupKey)) return;
     if (msg.id) {
       processedMessageIds.add(dedupKey);
-      // Prevent unbounded growth — keep last 10000 entries
-      if (processedMessageIds.size > 10000) {
-        const iter = processedMessageIds.values();
-        for (let i = 0; i < 5000; i++) {
-          processedMessageIds.delete(iter.next().value);
-        }
-      }
+      saveDedupState();
     }
 
     try {
@@ -450,13 +486,18 @@ function resetGuardrailState() {
 
 export {
   handleMessage, escapeHtml, processedMessageIds,
-  scanGuardrail, getGuardrailState, resetGuardrailState
+  scanGuardrail, getGuardrailState, resetGuardrailState,
+  loadDedupState, saveDedupState, getDedupPath
 };
 
 // Only auto-connect when running as main script
 if (process.argv[1]?.endsWith('ws-daemon.js')) {
   if (!handle) { console.error('Usage: ws-daemon.js <handle>'); process.exit(1); }
   keys = loadKeys();
+  loadDedupState();
+  if (processedMessageIds.size > 0) {
+    console.log(`Loaded ${processedMessageIds.size} dedup entries`);
+  }
 
   if (typeof WebSocket !== 'undefined') {
     connect();
