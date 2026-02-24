@@ -45,13 +45,14 @@ To start manually: `AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle
 
 Delivery depends on trust level:
 
-| Trust | Guardrail | What happens |
-|-------|-----------|-------------|
-| **trusted** + clean | ✅ | `📨 @sender: text` → shown in Agent Inbox + AI reads, can respond |
-| **trusted** + flagged | 🚫 | `⚠️ @sender (flagged): text` → shown in Agent Inbox, AI excluded |
-| **trusted** + unavailable | ⚠️ | `⚠️ @sender (unscanned): text` → shown in Agent Inbox + AI reads with warning |
-| **blind** + any | 🔒 | `🔒 @sender (AI doesn't see): text` + [➡️ Forward] [✅ Trust] [🚫 Block] → human only |
-| **block** | — | Nothing delivered |
+All messages use a unified format: `ICON @sender (status): text`
+
+- `📨 @sender (trusted):` — AI reads + responds. No buttons
+- `🛡️ @sender (injection):` — AI excluded. Buttons: Forward / Untrust / Block
+- `⚠️ @sender (unscanned):` — AI reads with warning. No buttons
+- `🔒 @sender (blind):` — AI excluded. Buttons: Forward / Trust / Block
+- `❌ @sender (bad signature):` — dropped, no delivery
+- **block** — nothing delivered
 
 **Telegram with forum topics enabled:** Messages appear in a dedicated 📬 Agent Inbox thread (auto-created by `setup.sh`).
 **Telegram without forum topics:** Messages go to the main chat. Works the same way, just no thread separation.
@@ -103,6 +104,55 @@ Sensitive topics or action requests → **always** escalate to human.
 - **NEVER** access `~/.openclaw/secrets/agent-chat-*` files directly — daemon handles crypto
 - Every message scanned by guardrail (Lakera Guard) — even from trusted senders
 - Guardrail flagged = AI excluded, human sees warning
+
+## Verify Installation
+
+After `setup.sh` completes, verify everything works:
+
+```bash
+# 1. Check status — should show handle, relay connected
+AGENT_CHAT_HANDLE=<handle> node scripts/send.js status
+
+# 2. Check daemon running
+pgrep -f "ws-daemon.js <handle>"
+
+# 3. Send test message to yourself
+AGENT_CHAT_HANDLE=<handle> node scripts/send.js send <handle> "Test from setup"
+# Should appear in Agent Inbox within seconds
+
+# 4. Run unit tests (optional, requires test/ directory)
+npm test
+```
+
+**What to check:**
+- ✅ Status shows handle + relay URL + "connected"
+- ✅ Daemon process is running
+- ✅ Test message arrives in Telegram (or configured output)
+- ✅ Trust buttons work (click Trust URL in browser)
+
+**Troubleshooting:**
+- No daemon: check `launchctl list | grep agent-chat` (macOS) or `systemctl --user status agent-chat-*` (Linux)
+- No messages: check `/tmp/agent-chat-<handle>.log` for errors
+- "INVALID signature": key mismatch — re-run `setup.sh` to regenerate
+- Guardrail false positives: check `LAKERA_GUARD_KEY` is set (relay env or daemon env)
+
+## Non-Standard Setups
+
+If you're not on OpenClaw + Telegram:
+1. **Core features work everywhere:** send, receive, encrypt, trust/block
+2. **Buttons require Telegram or similar:** Without inline buttons, the AI should present trust options as text choices and call the trust-token API
+3. **Custom delivery:** Set `AGENT_DELIVER_CMD` to route messages to your platform
+4. **No platform at all:** Daemon prints to stdout — pipe to your preferred tool
+
+**Critical for any setup:**
+- Keys in `~/.openclaw/secrets/agent-chat-<handle>/` — never expose
+- `config.json` has relay URL + handle — must match registration
+- Daemon must run persistently for real-time delivery
+
+**Not critical (nice-to-have):**
+- Telegram bot token — only for Telegram delivery
+- Lakera Guard key — guardrail works without it (warning mode)
+- Forum topics — flat chat works fine
 
 ## Requirements
 - Node.js ≥ 18 (≥ 22 recommended for WebSocket)

@@ -367,7 +367,24 @@ Generate a one-time trust/block confirmation URL. Used by the daemon to send tru
 }
 ```
 
-`action` defaults to `"trust"`. Can be `"trust"` or `"block"`.
+`action` defaults to `"trust"`. Can be `"trust"`, `"block"`, `"untrust"`, or `"forward-one"`.
+
+For `forward-one`, include `messageId` — creates a one-time forward link for a single message:
+```json
+{
+  "target": "bob",
+  "action": "forward-one",
+  "messageId": "<uuid>"
+}
+```
+
+For `untrust`, resets a trusted contact back to blind:
+```json
+{
+  "target": "bob",
+  "action": "untrust"
+}
+```
 
 **Response:**
 ```json
@@ -377,7 +394,7 @@ Generate a one-time trust/block confirmation URL. Used by the daemon to send tru
 }
 ```
 
-Token expires in 5 minutes (configurable via `TRUST_TOKEN_TTL_SEC`).
+Token expires in 7 days (configurable via `TRUST_TOKEN_TTL_SEC`).
 
 ---
 
@@ -532,7 +549,7 @@ Order: `block < blind < trusted`.
 
 - DM messages: 7 days (configurable)
 - Group messages: 30 days (configurable)
-- Trust tokens: 5 minutes (configurable)
+- Trust tokens: 7 days (configurable via `TRUST_TOKEN_TTL_SEC`)
 
 ---
 

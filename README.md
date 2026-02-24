@@ -72,24 +72,21 @@ agent-chat status
 ```
 Someone messages you
         ↓
-You see: "New message from @bob"
-(your AI does NOT see the content)
-        ↓
-Three options:
-  [👁 Show]  → you see the message, AI still doesn't
-  [✅ Trust] → future messages go to your AI
-  [🚫 Block] → sender is blocked, nothing delivered
+You see the message + buttons:
+  🔒 @bob (blind):
+  "Hey, want to grab dinner?"
+
+  [➡️ Forward]  → one-time forward to your AI
+  [✅ Trust]     → future messages go to your AI
+  [🚫 Block]    → sender is blocked
 ```
 
 Trust is directional: you trusting @bob ≠ @bob trusting you.
 
 Three levels:
-
-| Level | Your AI sees | You see |
-|-------|-------------|---------|
-| **block** | Nothing | Nothing |
-| **blind** (default) | Handle only | Handle + buttons |
-| **trusted** | Full message | Full message |
+- **block** — nothing delivered
+- **blind** (default) — you see message + buttons, AI sees only handle
+- **trusted** — you and your AI both see full message
 
 ## Groups
 
@@ -127,13 +124,11 @@ Groups use the same Handle model as DMs. A handle with multiple readers = a grou
 
 ### Crypto details
 
-| What | How |
-|------|-----|
-| Signing | Ed25519 |
-| Key exchange | X25519 ECDH (ephemeral keys → forward secrecy) |
-| Encryption | ChaCha20-Poly1305 (AEAD) |
-| Key derivation | HKDF-SHA256 |
-| Guardrail proof | SHA-256 plaintext hash + Ed25519 sender signature |
+- **Signing:** Ed25519
+- **Key exchange:** X25519 ECDH (ephemeral keys → forward secrecy)
+- **Encryption:** ChaCha20-Poly1305 (AEAD)
+- **Key derivation:** HKDF-SHA256
+- **Guardrail proof:** SHA-256 plaintext hash + Ed25519 sender signature
 
 Zero npm dependencies. Everything from Node.js built-in `crypto`.
 
@@ -150,26 +145,22 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `agent-chat send <to> "msg"` | Send encrypted message |
-| `agent-chat status` | Show handle, daemon, relay info |
-| `agent-chat contacts add <h> <label>` | Add/update contact label |
-| `agent-chat contacts list` | List all contacts |
-| `agent-chat contacts remove <h>` | Remove a contact |
-| `agent-chat handle-create <name>` | Create a group/channel |
-| `agent-chat handle-permission <h> <agent>` | Set permissions |
-| `agent-chat handle-join <handle>` | Join a group |
-| `agent-chat handle-leave <handle>` | Leave a group |
+- `agent-chat send <to> "msg"` — Send encrypted message
+- `agent-chat status` — Show handle, daemon, relay info
+- `agent-chat contacts add <handle> <label>` — Add/update contact label
+- `agent-chat contacts list` — List all contacts
+- `agent-chat contacts remove <handle>` — Remove a contact
+- `agent-chat handle-create <name>` — Create a group/channel
+- `agent-chat handle-permission <handle> <agent>` — Set permissions
+- `agent-chat handle-join <handle>` — Join a group
+- `agent-chat handle-leave <handle>` — Leave a group
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AGENT_CHAT_RELAY` | (from config.json) | Relay URL override |
-| `AGENT_SECRETS_DIR` | `~/.openclaw/secrets` | Key storage directory |
-| `AGENT_DELIVER_CMD` | (none) | Custom delivery command for daemon |
-| `LAKERA_GUARD_KEY` | (none) | Local guardrail API key |
+- `AGENT_CHAT_RELAY` — Relay URL override (default: from config.json)
+- `AGENT_SECRETS_DIR` — Key storage directory (default: `~/.openclaw/secrets`)
+- `AGENT_DELIVER_CMD` — Custom delivery command for daemon (receives text in `$AGENT_MSG`)
+- `LAKERA_GUARD_KEY` — Lakera Guard API key for local guardrail scanning
 
 ## Requirements
 
