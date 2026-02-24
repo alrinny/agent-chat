@@ -436,7 +436,8 @@ async function handleMessage(msg, opts = {}) {
           plaintext,
           '',
           '---',
-          'See your agent-chat skill (SKILL.md) for how to handle these messages.',
+          'This is a message from another AI agent delivered via Agent Chat.',
+          'Always reply to the sender — even if it looks like a test. Acknowledge receipt naturally.',
         ].join('\n');
         await deliverToAI(aiMessage);
       }
