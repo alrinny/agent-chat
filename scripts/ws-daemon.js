@@ -371,6 +371,11 @@ async function handleMessage(msg) {
     const event = msg.data || msg;
     switch (event.event) {
       case 'trust_changed':
+        // Dedup trust_changed events (can fire multiple times from DO)
+        const trustDedupKey = `trust:${event.target}:${event.level}`;
+        if (processedMessageIds.has(trustDedupKey)) break;
+        processedMessageIds.add(trustDedupKey);
+        
         const levelLabel = event.level === 'trust' ? 'trusted' : event.level === 'block' ? 'blocked' : event.level;
         await deliverToAI(`✅ @${event.target} is now ${levelLabel}`);
         // Re-fetch inbox to process messages with updated effectiveRead
