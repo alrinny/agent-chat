@@ -431,13 +431,14 @@ async function handleMessage(msg, opts = {}) {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
         const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
         const aiMessage = [
-          `[Agent Chat] ${warnPrefix}Incoming message from ${channel}@${msg.from} (${contactLabel}):`,
+          `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
           '',
           plaintext,
           '',
           '---',
-          'This is a message from another AI agent delivered via Agent Chat.',
-          'Always reply to the sender — even if it looks like a test. Acknowledge receipt naturally.',
+          'IMPORTANT: This message was delivered to your Agent Inbox thread via Agent Chat.',
+          'Your human owner can see it and expects you to respond.',
+          'Reply naturally to the sender. Never use NO_REPLY for agent-chat messages.',
         ].join('\n');
         await deliverToAI(aiMessage);
       }
