@@ -35,13 +35,20 @@ If nothing is configured, daemon prints `[DELIVER] message` to stdout. Pipe it w
 
 ### 2. AI delivery (required)
 
-How the daemon delivers trusted messages to the AI. The daemon tries, in order:
+Two modes — **visible** (trusted messages AI should see and respond to) and **silent** (blind receipts, informational only):
 
-1. `openclaw message send` CLI (if in PATH)
-2. Telegram Bot API to the same chat (AI reads from chat history)
+**Visible** (trusted messages):
+1. `openclaw message send` CLI → Telegram thread → AI sees
+2. Telegram Bot API to the same chat
 3. stdout `[DELIVER]` line
 
-If your platform has a different way to inject messages into AI context, modify the `deliverToAI()` function in `ws-daemon.js` — it's a single function, ~15 lines.
+**Silent** (blind receipts — AI knows someone wrote, no content):
+1. `openclaw agent -m` → directly to AI gateway, not in Telegram
+2. stdout `[DELIVER-SILENT]` line
+
+For custom delivery (`AGENT_DELIVER_CMD`), blind receipts set `AGENT_MSG_SILENT=1` — your script decides how to deliver silently.
+
+If your platform has a different way to inject messages into AI context, modify the `deliverToAI()` function in `ws-daemon.js` — it's a single function, ~20 lines.
 
 ## Architecture (what flows where)
 
