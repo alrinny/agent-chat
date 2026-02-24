@@ -147,9 +147,11 @@ describe('setup.sh — 409 handling', () => {
       `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh unreachable-test 2>&1 || true`,
       { encoding: 'utf8' }
     );
-    // Should show network error, not stack trace
-    assert.ok(out.includes('Error') || out.includes('error') || out.includes('ECONNREFUSED'),
-      `Expected readable error, got: ${out.slice(0, 300)}`);
+    assert.ok(out.includes('Cannot reach relay') || out.includes('Cannot connect'),
+      `Expected network error message, got: ${out.slice(0, 300)}`);
+    // Must NOT contain stack traces or raw JSON
+    assert.ok(!out.includes('TypeError') && !out.includes('node:internal'),
+      `Should not contain stack traces`);
   });
 });
 
