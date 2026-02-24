@@ -96,7 +96,18 @@ REG_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CH
 
 # Check registration result
 if echo "$REG_RESULT" | grep -q 'already taken'; then
-  echo "✅ @$HANDLE already registered — reusing existing registration"
+  # Verify our local keys match the relay — if not, auth will fail
+  VERIFY_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
+    node "$SCRIPT_DIR/send.js" contacts list 2>&1) || true
+  if echo "$VERIFY_RESULT" | grep -qi 'Unauthorized\|INVALID\|signature\|401'; then
+    echo "❌ @$HANDLE is registered with DIFFERENT keys on the relay."
+    echo ""
+    echo "Your local keys don't match the relay registration."
+    echo "To fix: delete the old registration (relay admin) or use a different handle."
+    echo "If you own the relay, delete the KV key: handle:$HANDLE"
+    exit 1
+  fi
+  echo "✅ @$HANDLE already registered — keys match, reusing"
 elif echo "$REG_RESULT" | grep -q 'Cannot connect\|Cannot reach\|timed out\|Cannot resolve'; then
   echo "❌ Cannot reach relay at $RELAY"
   exit 1
