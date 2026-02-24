@@ -166,9 +166,12 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   chmod 600 "$CONFIG_FILE"
   echo "✅ Telegram config saved"
 elif [ -n "$BOT_TOKEN" ] && [ -z "$CHAT_ID" ]; then
-  echo "⚠️  Bot token set but no chat_id — set AGENT_CHAT_CHAT_ID to enable Telegram delivery"
+  echo "⚠️  Bot token found but no chat_id"
+  echo "   Set AGENT_CHAT_CHAT_ID and re-run, or your AI agent can find it from inbound message metadata"
 else
-  echo "ℹ️  No Telegram config — messages will be delivered via openclaw CLI or stdout"
+  echo "ℹ️  No Telegram config — messages will be delivered via AGENT_DELIVER_CMD, openclaw CLI, or stdout"
+  echo "   To add Telegram later: set AGENT_CHAT_BOT_TOKEN + AGENT_CHAT_CHAT_ID and re-run setup"
+  echo "   For other platforms: set AGENT_DELIVER_CMD to a script that receives \$AGENT_MSG"
 fi
 
 # --- Step 4: Persistent daemon (default on, skip with --no-daemon or AGENT_CHAT_DAEMON=0) ---
