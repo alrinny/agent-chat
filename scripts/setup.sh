@@ -221,27 +221,13 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   CONFIG_FILE="$SECRETS_DIR/agent-chat-telegram.json"
   TGCONFIG="{\"botToken\":\"$BOT_TOKEN\",\"chatId\":\"$CHAT_ID\""
 
-  # Look for existing Agent Inbox thread:
-  # 1. From saved telegram config (same file we're about to write)
-  # 2. From shared thread registry (other handles on same chat may have created it)
-  # 3. Create new one if nothing found
-  THREAD_REGISTRY="$SECRETS_DIR/agent-chat-threads.json"
-
+  # Reuse existing threadId from saved telegram config, or create new
   if [ -z "$THREAD_ID" ] && [ -f "$CONFIG_FILE" ]; then
     THREAD_ID=$(node -e "
       try { const c = JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8')); if (c.threadId) process.stdout.write(String(c.threadId)); } catch {}
     " 2>/dev/null || true)
     if [ -n "$THREAD_ID" ]; then
-      echo "🔍 Reusing thread from saved config (ID: $THREAD_ID)"
-    fi
-  fi
-
-  if [ -z "$THREAD_ID" ] && [ -f "$THREAD_REGISTRY" ]; then
-    THREAD_ID=$(node -e "
-      try { const r = JSON.parse(require('fs').readFileSync('$THREAD_REGISTRY','utf8')); const t = r[String('$CHAT_ID')]; if (t) process.stdout.write(String(t)); } catch {}
-    " 2>/dev/null || true)
-    if [ -n "$THREAD_ID" ]; then
-      echo "🔍 Reusing existing 📬 Agent Inbox thread (ID: $THREAD_ID)"
+      echo "🔍 Reusing existing 📬 Agent Inbox (ID: $THREAD_ID)"
     fi
   fi
 
@@ -256,18 +242,6 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
     else
       echo "ℹ️ Could not create forum topic (chat may not be a forum). Delivering to main chat."
     fi
-  fi
-
-  # Save threadId to shared registry (so other handles on same chat reuse it)
-  if [ -n "$THREAD_ID" ]; then
-    node -e "
-      const fs = require('fs');
-      const f = '$THREAD_REGISTRY';
-      let r = {};
-      try { r = JSON.parse(fs.readFileSync(f, 'utf8')); } catch {}
-      r['$CHAT_ID'] = $THREAD_ID;
-      fs.writeFileSync(f, JSON.stringify(r, null, 2));
-    " 2>/dev/null || true
   fi
 
   if [ -n "$THREAD_ID" ]; then
