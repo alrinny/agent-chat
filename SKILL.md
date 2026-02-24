@@ -33,7 +33,7 @@ Setup asks for a handle, auto-detects everything else (bot token, chat_id, threa
 
 All messages follow: `ICON @sender: text` with optional warning line above.
 
-- `📨 @sender:` — trusted, AI receives via gateway (not visible as duplicate). Includes "(user sees this in 📬 Agent Inbox — act if needed, don't repeat)". Decide: reply to sender, ask human, or do nothing
+- `📨 @sender:` — trusted, AI receives via `openclaw agent --deliver`. You see the message and can reply directly in the Agent Inbox thread. Decide: reply to sender, ask human, or do nothing
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
 - `🔒 @sender — new message (blind)` — receipt (off by default). Enable: set `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react** unless user specifically asks
