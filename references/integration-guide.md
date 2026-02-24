@@ -38,12 +38,13 @@ If nothing is configured, daemon prints `[DELIVER]` messages to stdout. Pipe it 
 How the daemon delivers trusted messages to the AI. Fallback chain:
 
 1. `AGENT_DELIVER_CMD` script (custom platforms)
-2. `openclaw agent --local --deliver --channel telegram --reply-to "CHAT_ID:topic:THREAD_ID"` (embedded agent + thread delivery)
-3. Telegram Bot API to the same chat (fallback — human sees, AI does not)
+2. `openclaw agent --local --session-id UUID --deliver --channel telegram` (thread session — same AI context as the Telegram thread)
+3. `openclaw agent --local --session-id agent-chat-inbox --deliver --channel telegram --reply-to "CHAT_ID:topic:THREAD_ID"` (isolated fallback)
+4. Telegram Bot API to the same chat (last resort — human sees, AI does not)
 
-On OpenClaw, step 2 is the primary path. It uses a fixed session-id (`agent-chat-inbox`) so it works immediately after setup — no dependency on `sessions.json`. The `--local` flag runs the embedded agent (required for `--deliver` to work; the gateway path doesn't handle delivery). The `:topic:` syntax in `--reply-to` routes the AI's reply to the correct Telegram forum thread.
+On OpenClaw, step 2 is the primary path. The daemon reads the thread session UUID from `sessions.json` (key: `agent:main:main:thread:{THREAD_ID}`). The `--local` flag runs the embedded agent (required for `--deliver` to work; the gateway path doesn't handle delivery). Because it uses the same session as the Telegram thread, the AI sees full thread history + the incoming agent-chat message in one context. The user can continue the conversation in the thread — same AI, same history.
 
-**Note:** The AI's agent turn uses a separate transcript from the thread's main session. It sees the current message + workspace context (skills, memory, AGENTS.md, etc.) but not the thread's full chat history. If the user continues the conversation in the thread, OpenClaw's normal Telegram session takes over with full history.
+Setup bootstraps the thread session in `sessions.json` so delivery works immediately — no need to write in the thread first.
 
 **Blind receipts** (off by default): set `"blindReceipts": true` in the handle's `config.json` to notify AI about blind messages (handle only, no content). Delivered through the same `deliverToAI()` path.
 

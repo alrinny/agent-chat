@@ -237,8 +237,20 @@ function deliverFallback(text, buttons = null) {
   }
 }
 
+// Resolve thread session UUID from OpenClaw sessions.json.
+// Returns the sessionId for the Agent Inbox thread, or null if not found.
+function resolveThreadSessionId(threadId) {
+  if (!threadId) return null;
+  try {
+    const sessionsPath = join(process.env.HOME, '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
+    const sessions = JSON.parse(readFileSync(sessionsPath, 'utf8'));
+    return sessions[`agent:main:main:thread:${threadId}`]?.sessionId || null;
+  } catch { return null; }
+}
+
 // Deliver a message to the AI agent via openclaw agent --local --deliver.
-// Uses a fixed session-id so it works immediately after setup (no sessions.json dependency).
+// Primary: uses the thread session UUID (same AI context as Telegram thread).
+// Fallback: uses isolated "agent-chat-inbox" session with --reply-to for thread routing.
 // AI receives the message with full workspace/skills/memory context and responds in the thread.
 async function deliverToAI(text) {
   if (DELIVER_CMD) {
@@ -249,26 +261,42 @@ async function deliverToAI(text) {
 
   const tg = loadTelegramConfig();
 
-  // Primary: openclaw agent --local --deliver --channel telegram
-  // Fixed session-id "agent-chat-inbox" — no dependency on sessions.json.
   // --local runs embedded agent (required for --deliver to work; gateway path doesn't deliver).
   // --deliver sends AI's reply to the Telegram thread.
+
+  // Primary: thread session UUID — same session as when user writes in the thread.
+  // AI sees full thread history + incoming agent-chat message in one context.
+  const threadUUID = resolveThreadSessionId(tg?.threadId);
+  if (threadUUID) {
+    try {
+      const args = ['agent', '--local', '--session-id', threadUUID, '-m', text,
+        '--deliver', '--channel', 'telegram'];
+      execFileSync('openclaw', args, { stdio: 'inherit', timeout: 120000 });
+      console.log('[DELIVER-THREAD]', text);
+      return;
+    } catch (err) {
+      console.error('Thread session delivery failed:', err.message);
+      // Fall through to isolated session
+    }
+  }
+
+  // Fallback: isolated session with explicit thread routing.
+  // Works when thread session doesn't exist yet (shouldn't happen after setup bootstrap).
   try {
     const args = ['agent', '--local', '--session-id', 'agent-chat-inbox', '-m', text,
       '--deliver', '--channel', 'telegram'];
-    // Build reply-to target with :topic: syntax for thread delivery
     if (tg?.chatId) {
       const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
       args.push('--reply-to', target);
     }
     execFileSync('openclaw', args, { stdio: 'inherit', timeout: 120000 });
-    console.log('[DELIVER-AGENT]', text);
+    console.log('[DELIVER-FALLBACK]', text);
     return;
   } catch (err) {
-    console.error('openclaw agent --local failed:', err.message);
+    console.error('Isolated session delivery failed:', err.message);
   }
 
-  // Fallback: Telegram Bot API direct (human sees in thread, AI does not)
+  // Last resort: Telegram Bot API direct (human sees in thread, AI does not)
   if (tg) {
     try {
       const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
@@ -281,12 +309,12 @@ async function deliverToAI(text) {
       });
       if (!res.ok) {
         const e = await res.json().catch(() => ({}));
-        console.error(`Telegram fallback error ${res.status}:`, e.description || 'unknown');
+        console.error(`Telegram API fallback error ${res.status}:`, e.description || 'unknown');
       } else {
-        console.log('[DELIVER-FALLBACK]', text);
+        console.log('[DELIVER-API]', text);
       }
     } catch (e2) {
-      console.error('Telegram fallback also failed:', e2.message);
+      console.error('All delivery methods failed:', e2.message);
     }
   }
 }

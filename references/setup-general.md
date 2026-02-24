@@ -51,7 +51,7 @@ Prints `[DELIVER]` messages to stdout. Pipe to your tool.
 
 For trusted messages, the daemon needs to get content into your AI's context:
 
-- **OpenClaw:** automatic — daemon runs `openclaw agent --local --deliver` with a fixed session. AI receives the message with full workspace/skills/memory context and responds directly in the Telegram thread. No dependency on sessions.json — works immediately after setup
+- **OpenClaw:** automatic — daemon reads the thread session from `sessions.json` and runs `openclaw agent --local --deliver`. AI sees full thread history + incoming message in one context. Setup bootstraps the session so delivery works immediately
 - **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~20 lines) to call your agent's API
 - **Simplest:** AI monitors the same log/stdout as human delivery
 
