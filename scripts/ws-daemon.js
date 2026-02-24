@@ -291,8 +291,10 @@ async function handleMessage(msg) {
         // Daemon sends directly via Bot API — OpenClaw/AI never sees this message
         const trustTokenRes = await relayPost('/trust-token', { target: msg.from });
         const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
+        const forwardTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'forward-one', messageId: msg.id });
 
         const buttons = [
+          [{ text: `➡️ Forward to AI`, url: forwardTokenRes.url }],
           [{ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
         ];
         await sendTelegram(
