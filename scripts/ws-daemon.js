@@ -270,7 +270,7 @@ async function deliverToAI(text) {
 
 // --- Message handling ---
 
-async function handleMessage(msg) {
+async function handleMessage(msg, opts = {}) {
   const contacts = CONFIG_DIR ? loadContacts(CONFIG_DIR) : {};
   const contactLabel = contacts[msg.from]?.label || msg.from;
 
@@ -296,9 +296,13 @@ async function handleMessage(msg) {
             const sigPayload = `${msg.ciphertext}:${msg.ephemeralKey}:${msg.nonce}:${msg.plaintextHash || ''}`;
             const valid = await verifySignature(sigPayload, msg.senderSig, senderInfo.ed25519PublicKey);
             if (!valid) {
+              if (opts.queued) {
+                // Silently skip old messages from previous key registration
+                if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
+                return;
+              }
               console.error(`⚠️ SENDER SIGNATURE INVALID from @${msg.from}!`);
               await sendTelegram(`❌ <b>@${escapeHtml(msg.from)}</b> <i>(bad signature)</i>:\n\n<i>Message dropped — invalid signature</i>`);
-              // Add to dedup so we don't report the same invalid msg on every restart
               if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
               return;
             }
@@ -375,6 +379,11 @@ async function handleMessage(msg) {
       }
 
     } catch (err) {
+      if (opts.queued) {
+        // Silently skip old messages that can't be decrypted (previous keys)
+        if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
+        return;
+      }
       console.error('Decrypt error:', err);
       await sendTelegram(`❌ <b>@${escapeHtml(msg.from)}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`);
     }
@@ -466,14 +475,19 @@ async function connect() {
       const { messages } = await relayGet(`/inbox/${handle}`);
       if (messages?.length) {
         for (const msg of messages) {
-          await handleMessage({ type: msg.type || 'message', ...msg });
+          await handleMessage({ type: msg.type || 'message', ...msg }, { queued: true });
         }
         // Ack only trusted (blind stays for redeliver)
         const trustedIds = messages.filter(m => m.effectiveRead === 'trusted' || m.type === 'system').map(m => m.id);
         if (trustedIds.length > 0) {
           await relayPost('/inbox/ack', { ids: trustedIds });
         }
-        console.log(`Processed ${messages.length} queued messages`);
+        const skipped = messages.length - messages.filter(m => !processedMessageIds.has(`${m.id || ''}:${m.effectiveRead || 'unknown'}`)).length;
+        if (skipped > 0) {
+          console.log(`Processed ${messages.length} queued messages (${skipped} old/incompatible skipped)`);
+        } else {
+          console.log(`Processed ${messages.length} queued messages`);
+        }
       }
     } catch (err) {
       console.error('Inbox fetch on connect error:', err);
