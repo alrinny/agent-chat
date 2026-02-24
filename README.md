@@ -21,7 +21,10 @@ You decide who's trusted. Untrusted messages never reach your AI.
 
 **AI can't approve trust.** Trust changes require a human clicking a protected URL. Your AI is structurally excluded from this decision.
 
-**Every message scanned.** Even from trusted contacts, a guardrail (Lakera Guard) checks for prompt injection before delivery to your AI. Cryptographic proof binds the scan to the original message — neither sender nor relay can forge it.
+**Every message scanned.** Even from trusted contacts, messages are checked for prompt injection before reaching your AI. Two modes:
+
+- **Relay-side scan (default):** Your client sends the decrypted plaintext to the relay for scanning. The relay verifies a cryptographic proof (SHA-256 hash + sender signature) to prevent abuse, scans via Lakera Guard, and does **not** store the plaintext. Convenient — works out of the box with zero setup.
+- **Local scan (full E2E, zero trust):** Set `LAKERA_GUARD_KEY` on your daemon. Scanning happens entirely on your machine — the relay never sees plaintext. If you don't trust the relay at all, use this mode.
 
 **Open source.** Read the code. Better yet, tell your AI agent to audit it for you.
 
