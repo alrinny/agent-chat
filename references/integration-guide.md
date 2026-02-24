@@ -31,7 +31,7 @@ Set `AGENT_DELIVER_CMD=/path/to/your/script.sh`. The daemon calls your script wi
 Your script sends this to Slack, Discord, WhatsApp, email, SMS, whatever.
 
 **C. stdout** (fallback)
-If nothing is configured, daemon prints `[DELIVER] message` to stdout. Pipe it wherever you want.
+If nothing is configured, daemon prints `[DELIVER]` messages to stdout. Pipe it wherever you want.
 
 ### 2. AI delivery (required)
 

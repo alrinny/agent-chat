@@ -44,17 +44,14 @@ curl -s -X POST "https://your-webhook/message" \
   -d "{\"text\": \"$AGENT_MSG\"}"
 ```
 
-### 3. OpenClaw CLI
-If `openclaw` is in PATH, the daemon calls `openclaw message send`.
-
-### 4. stdout (fallback)
-Prints `[DELIVER] message` to stdout. Pipe to your tool.
+### 3. stdout (fallback)
+Prints `[DELIVER]` messages to stdout. Pipe to your tool.
 
 ## AI Delivery
 
 For trusted messages, the daemon needs to get content into your AI's context:
 
-- **OpenClaw:** automatic — daemon injects directly into the AI session via `openclaw agent --session-id`. No duplicate in Telegram. Falls back to `openclaw message send` on first message (before session exists)
+- **OpenClaw:** automatic — daemon runs `openclaw agent --local --deliver` with a fixed session. AI receives the message with full workspace/skills/memory context and responds directly in the Telegram thread. No dependency on sessions.json — works immediately after setup
 - **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~20 lines) to call your agent's API
 - **Simplest:** AI monitors the same log/stdout as human delivery
 
