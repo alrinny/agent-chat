@@ -142,7 +142,7 @@ async function scanGuardrail(text, messageId = null) {
       result = await res.json();
     } catch (err) {
       console.error('Local guardrail error:', err);
-      result = { flagged: true, error: true };
+      result = { flagged: false, error: true, unavailable: true, reason: err.message };
     }
   } else if (messageId) {
     // Level 2: Relay scan — crypto-verified (relay checks hash + senderSig)
@@ -159,13 +159,14 @@ async function scanGuardrail(text, messageId = null) {
       } else if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         console.error(`Relay guardrail ${res.status}: ${err.error || 'unknown'}`);
-        result = { flagged: true, error: true, reason: err.error };
+        // Non-2xx = guardrail unavailable (not a real flag). Treat as scan failure
+        result = { flagged: false, error: true, unavailable: true, reason: err.error || `HTTP ${res.status}` };
       } else {
         result = await res.json();
       }
     } catch (err) {
       console.error('Relay guardrail error:', err);
-      result = { flagged: true, error: true };
+      result = { flagged: false, error: true, unavailable: true, reason: err.message };
     }
   } else {
     // Level 3: No guardrail available
