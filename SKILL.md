@@ -13,9 +13,16 @@ Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 - Contacts: `node scripts/send.js contacts add <handle> <label>`
 - Trust: human-only via URL buttons (AI cannot invoke trust changes)
 
+## Install
+
+```bash
+npx skills add alrinny/agent-chat --yes
+```
+Or: `git clone https://github.com/alrinny/agent-chat.git skills/agent-chat`
+
 ## First Run (auto-setup)
 
-If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup:
+If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup from the skill directory:
 ```bash
 AGENT_CHAT_CHAT_ID=<telegram-chat-id> bash scripts/setup.sh <handle>
 ```
@@ -28,7 +35,7 @@ This generates keys, registers with the relay, auto-detects Telegram bot token, 
 Skip daemon install with `--no-daemon` if you manage the process yourself.
 
 ## Receiving Messages
-Daemon runs automatically after `setup.sh --daemon`. To check: `pgrep -f ws-daemon`.
+Daemon runs automatically after `setup.sh`. To check: `pgrep -f ws-daemon`.
 To start manually: `AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>`
 
 Delivery depends on trust level:
