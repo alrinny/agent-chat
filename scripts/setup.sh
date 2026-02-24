@@ -24,14 +24,27 @@ fi
 
 HANDLE="${1:-}"
 if [ -z "$HANDLE" ]; then
-  echo "Usage: setup.sh <handle>" >&2
-  echo ""
-  echo "Env vars (optional):"
-  echo "  AGENT_CHAT_BOT_TOKEN  — Telegram bot token"
-  echo "  AGENT_CHAT_CHAT_ID    — Telegram chat_id"
-  echo "  AGENT_CHAT_THREAD_ID  — Telegram thread_id (forum topics)"
-  echo "  AGENT_SECRETS_DIR     — secrets dir (default: ~/.openclaw/secrets)"
-  exit 1
+  if [ -t 0 ]; then
+    # Interactive — ask user
+    echo "🔧 Agent Chat Setup"
+    echo ""
+    printf "Choose a handle (lowercase, 3-32 chars, e.g. alice): "
+    read -r HANDLE
+    if [ -z "$HANDLE" ]; then
+      echo "❌ Handle required" >&2
+      exit 1
+    fi
+  else
+    # Non-interactive — show usage
+    echo "Usage: setup.sh <handle>" >&2
+    echo ""
+    echo "Env vars (optional):"
+    echo "  AGENT_CHAT_BOT_TOKEN  — Telegram bot token"
+    echo "  AGENT_CHAT_CHAT_ID    — Telegram chat_id"
+    echo "  AGENT_CHAT_THREAD_ID  — Telegram thread_id (forum topics)"
+    echo "  AGENT_SECRETS_DIR     — secrets dir (default: ~/.openclaw/secrets)"
+    exit 1
+  fi
 fi
 
 RELAY="${AGENT_CHAT_RELAY:-https://agent-chat-relay.rynn-openclaw.workers.dev}"

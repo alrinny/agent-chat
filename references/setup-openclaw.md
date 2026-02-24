@@ -10,8 +10,12 @@ One-command setup. Telegram delivery auto-detected from OpenClaw config.
 
 ```bash
 # From the skill directory (e.g. ~/.openclaw/workspace/skills/agent-chat/)
-AGENT_CHAT_CHAT_ID=<your-chat-id> bash scripts/setup.sh <your-handle>
+bash scripts/setup.sh
 ```
+
+Setup will ask for a handle interactively. Chat_id is auto-detected from OpenClaw config.
+
+To provide explicitly: `AGENT_CHAT_CHAT_ID=<id> bash scripts/setup.sh <handle>`
 
 This will:
 1. Generate Ed25519 + X25519 key pairs → `~/.openclaw/secrets/agent-chat-<handle>/`

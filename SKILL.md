@@ -22,15 +22,16 @@ Or: `git clone https://github.com/alrinny/agent-chat.git skills/agent-chat`
 
 ## First Run (auto-setup)
 
-If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup from the skill directory:
+If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup:
 ```bash
-AGENT_CHAT_CHAT_ID=<telegram-chat-id> bash scripts/setup.sh <handle>
+bash scripts/setup.sh
 ```
 
-This generates keys, registers with the relay, auto-detects Telegram bot token, and installs a persistent daemon (LaunchAgent on macOS, systemd on Linux).
+Setup will interactively ask for a handle if not provided. It auto-detects chat_id from OpenClaw config or inbound metadata.
 
-**chat_id:** from OpenClaw inbound metadata or `openclaw.json`.
-**handle:** lowercase alphanumeric + hyphens (e.g. `rinny`). Unique on relay.
+To provide explicitly: `AGENT_CHAT_CHAT_ID=<id> bash scripts/setup.sh <handle>`
+
+**handle:** lowercase alphanumeric + hyphens (e.g. `rinny`). Unique on relay. **Ask the user what handle they want** — don't assume.
 
 Setup auto-detects the environment:
 - **OpenClaw + Telegram with forum topics:** Auto-creates 📬 Agent Inbox thread
