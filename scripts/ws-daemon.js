@@ -237,14 +237,16 @@ async function deliverToAI(text) {
     const tg = loadTelegramConfig();
     try {
       const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
+      if (tg?.threadId) args.push('--thread-id', String(tg.threadId));
       execFileSync('openclaw', args, { stdio: 'inherit', timeout: 10000 });
       console.log('[DELIVER]', text);
     } catch (err) {
       console.error('openclaw message send failed:', err.message);
-      // Fallback: send via Telegram Bot API (without threadId — goes to main chat)
+      // Fallback: send via Telegram Bot API
       if (tg) {
         try {
           const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
+          if (tg.threadId) payload.message_thread_id = tg.threadId;
           const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
