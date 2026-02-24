@@ -295,7 +295,7 @@ async function handleMessage(msg) {
             const valid = await verifySignature(sigPayload, msg.senderSig, senderInfo.ed25519PublicKey);
             if (!valid) {
               console.error(`⚠️ SENDER SIGNATURE INVALID from @${msg.from}!`);
-              await sendTelegram(`⚠️ Message from @${escapeHtml(msg.from)} has INVALID signature. Dropped.`);
+              await sendTelegram(`❌ <b>@${escapeHtml(msg.from)}</b> <i>(bad signature)</i>:\n\n<i>Message dropped — invalid signature</i>`);
               // Add to dedup so we don't report the same invalid msg on every restart
               if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
               return;
@@ -330,7 +330,7 @@ async function handleMessage(msg) {
           [{ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
         ];
         await sendTelegram(
-          `🔒 <b>@${escapeHtml(msg.from)}</b> <i>(AI doesn't see this)</i>:\n\n` +
+          `🔒 <b>@${escapeHtml(msg.from)}</b> <i>(blind)</i>:\n\n` +
           `${escapeHtml(plaintext)}`,
           buttons
         );
@@ -344,19 +344,22 @@ async function handleMessage(msg) {
       const scan = await scanGuardrail(plaintext, msg.id);
 
       if (scan.flagged && !scan.unavailable) {
-        // Flagged by Lakera — same format as blind, with Forward + Block buttons
+        // Flagged by Lakera — same format as blind, buttons depend on trust status
         const forwardTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'forward-one', messageId: msg.id });
         const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
 
         const preview = plaintext.length > 500 ? plaintext.slice(0, 500) + '…' : plaintext;
         const forwardUrl = `${forwardTokenRes.url}#${encodeURIComponent(preview)}`;
 
+        // Trusted sender: Forward + Untrust + Block
+        const untrustTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'untrust' });
         const buttons = [
           [{ text: `➡️ Forward to @${handle}`, url: forwardUrl }],
-          [{ text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
+          [{ text: `🔓 Untrust @${msg.from}`, url: untrustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
         ];
+
         await sendTelegram(
-          `🛡️ <b>@${escapeHtml(msg.from)}</b> <i>(⚠️ prompt injection — AI excluded)</i>:\n\n` +
+          `🛡️ <b>@${escapeHtml(msg.from)}</b> <i>(injection)</i>:\n\n` +
           `${escapeHtml(plaintext)}`,
           buttons
         );
@@ -367,9 +370,10 @@ async function handleMessage(msg) {
 
       // Show in Agent Inbox thread (human sees all messages in one place)
       const channel = msg.channel ? `#${msg.channel} — ` : '';
+      const statusLabel = scan.unavailable ? 'unscanned' : 'trusted';
       const prefix = scan.unavailable ? '⚠️' : '📨';
       await sendTelegram(
-        `${prefix} <b>@${escapeHtml(msg.from)}</b> (${escapeHtml(contactLabel)}):\n\n` +
+        `${prefix} <b>@${escapeHtml(msg.from)}</b> <i>(${statusLabel})</i>:\n\n` +
         `${escapeHtml(plaintext)}`
       );
 
@@ -379,7 +383,7 @@ async function handleMessage(msg) {
 
     } catch (err) {
       console.error('Decrypt error:', err);
-      await sendTelegram(`⚠️ Failed to decrypt message from @${escapeHtml(msg.from)}: ${escapeHtml(err.message)}`);
+      await sendTelegram(`❌ <b>@${escapeHtml(msg.from)}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`);
     }
     return;
   }
