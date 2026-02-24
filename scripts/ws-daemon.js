@@ -348,16 +348,17 @@ async function handleMessage(msg) {
         return;
       }
 
-      if (scan.unavailable) {
-        // Guardrail unavailable — still deliver to AI (trusted source), but notify user
-        const reason = scan.reason || 'guardrail unavailable';
-        await sendTelegram(`ℹ️ Message from @${escapeHtml(msg.from)} delivered without scan: ${escapeHtml(reason)}`);
-      }
-
-      // Clean or unavailable-but-trusted — deliver to AI
+      // Show in Agent Inbox thread (human sees all messages in one place)
       const channel = msg.channel ? `#${msg.channel} — ` : '';
-      const prefix = scan.unavailable ? '⚠️ [unscanned] ' : '📨 ';
-      await deliverToAI(`${prefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
+      const prefix = scan.unavailable ? '⚠️' : '📨';
+      await sendTelegram(
+        `${prefix} <b>@${escapeHtml(msg.from)}</b> (${escapeHtml(contactLabel)}):\n\n` +
+        `${escapeHtml(plaintext)}`
+      );
+
+      // Deliver to AI (AI sees trusted message content)
+      const aiPrefix = scan.unavailable ? '⚠️ [unscanned] ' : '📨 ';
+      await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
 
     } catch (err) {
       console.error('Decrypt error:', err);

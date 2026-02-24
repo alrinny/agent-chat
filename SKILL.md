@@ -42,13 +42,13 @@ Delivery depends on trust level:
 
 | Trust | Guardrail | What happens |
 |-------|-----------|-------------|
-| **trusted** + clean | ✅ | `📨 @sender: text` → AI reads, can respond |
-| **trusted** + flagged | 🚫 | `🚫 @sender (flagged): text` → human only, AI excluded |
-| **trusted** + unavailable | ⚠️ | `⚠️ @sender (unscanned): text` → AI reads with warning |
-| **blind** + any | 🔒 | `🔒 @sender (AI doesn't see): text` + [✅ Trust] [🚫 Block] → human only |
+| **trusted** + clean | ✅ | `📨 @sender: text` → shown in Agent Inbox + AI reads, can respond |
+| **trusted** + flagged | 🚫 | `⚠️ @sender (flagged): text` → shown in Agent Inbox, AI excluded |
+| **trusted** + unavailable | ⚠️ | `⚠️ @sender (unscanned): text` → shown in Agent Inbox + AI reads with warning |
+| **blind** + any | 🔒 | `🔒 @sender (AI doesn't see): text` + [➡️ Forward] [✅ Trust] [🚫 Block] → human only |
 | **block** | — | Nothing delivered |
 
-Blind messages show plaintext inline to human via Telegram Bot API. AI never sees them.
+All messages appear in the 📬 Agent Inbox thread (Telegram forum topic). Blind messages show plaintext to human only — AI never sees them. Trusted messages are visible to both human and AI.
 
 ## Sending
 ```bash

@@ -130,6 +130,21 @@ fi
 if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   CONFIG_FILE="$SECRETS_DIR/agent-chat-telegram.json"
   TGCONFIG="{\"botToken\":\"$BOT_TOKEN\",\"chatId\":\"$CHAT_ID\""
+
+  # Auto-create Agent Inbox forum topic if no thread_id provided
+  if [ -z "$THREAD_ID" ]; then
+    echo "Creating 📬 Agent Inbox thread..."
+    TOPIC_RESULT=$(curl -sf "https://api.telegram.org/bot${BOT_TOKEN}/createForumTopic" \
+      -d "chat_id=${CHAT_ID}" -d "name=📬 Agent Inbox" 2>/dev/null || true)
+    TOPIC_ID=$(echo "$TOPIC_RESULT" | grep -o '"message_thread_id":[0-9]*' | head -1 | cut -d: -f2 || true)
+    if [ -n "$TOPIC_ID" ]; then
+      THREAD_ID="$TOPIC_ID"
+      echo "✅ Created thread (ID: $THREAD_ID)"
+    else
+      echo "ℹ️ Could not create forum topic (chat may not be a forum). Delivering to main chat."
+    fi
+  fi
+
   if [ -n "$THREAD_ID" ]; then
     TGCONFIG="$TGCONFIG,\"threadId\":$THREAD_ID"
   fi
