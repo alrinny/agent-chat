@@ -320,10 +320,10 @@ async function handleMessage(msg) {
       const isUnscanned = scan.unavailable;
       const aiExcluded = !isTrusted || isFlagged; // blind or injection → AI doesn't see
 
-      // Warning line (optional, above the message)
+      // Warning line (optional, directly above the header — no blank line between)
       let warningLine = '';
-      if (isFlagged) warningLine = '🛡️ <b>potential harm detected</b>\n\n';
-      else if (isUnscanned) warningLine = '⚠️ <i>not checked for harm</i>\n\n';
+      if (isFlagged) warningLine = '⚠️ <b>potential harm detected</b>\n';
+      else if (isUnscanned) warningLine = '❓ <i>not checked for harm</i>\n';
 
       // Message header
       const icon = aiExcluded ? '🔒' : '📨';
