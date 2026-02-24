@@ -297,6 +297,8 @@ if [ "$INSTALL_DAEMON" = "1" ]; then
         <string>$HANDLE</string>
         <key>AGENT_SECRETS_DIR</key>
         <string>$SECRETS_DIR</string>
+        <key>PATH</key>
+        <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
@@ -310,7 +312,8 @@ if [ "$INSTALL_DAEMON" = "1" ]; then
 </plist>
 PLIST
     
-    launchctl load "$PLIST"
+    launchctl bootout "gui/$(id -u)/com.agent-chat.$HANDLE" 2>/dev/null || true
+    launchctl load "$PLIST" 2>/dev/null || launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || true
     echo "🔄 Daemon installed + started (LaunchAgent)"
     echo "   Log: /tmp/agent-chat-$HANDLE.log"
     
