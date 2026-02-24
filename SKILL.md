@@ -36,7 +36,7 @@ All messages follow: `ICON @sender: text` with optional warning line above.
 - `📨 @sender:` — trusted, AI reads + responds (visible in Telegram thread)
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
-- `🔒 @sender — new message (blind)` — silent receipt, AI knows someone wrote but can't see content. **Informational only — don't react** unless user specifically asks
+- `🔒 @sender — new message (blind)` — receipt (off by default). Enable: set `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react** unless user specifically asks
 - **block** — nothing delivered
 
 ## Sending + Contacts + Groups
