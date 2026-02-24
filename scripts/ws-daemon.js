@@ -256,30 +256,33 @@ async function deliverToAI(text) {
 
   const tg = loadTelegramConfig();
 
-  // Primary: gateway agent (direct session inject, no Telegram dupe)
+  // Primary: openclaw agent --deliver --channel telegram
+  // AI receives the message, processes it, and replies directly in the thread.
+  // Uses an isolated agent turn but with full workspace/skills/memory context.
   const sessionId = resolveAgentSessionId(tg?.threadId);
   if (sessionId) {
     try {
-      execFileSync('openclaw', ['agent', '--session-id', sessionId, '-m', text], {
-        stdio: 'inherit', timeout: 30000
-      });
+      const args = ['agent', '--session-id', sessionId, '-m', text,
+        '--deliver', '--channel', 'telegram'];
+      if (tg?.chatId) args.push('--reply-to', String(tg.chatId));
+      execFileSync('openclaw', args, { stdio: 'inherit', timeout: 60000 });
       console.log('[DELIVER-AGENT]', text);
       return;
     } catch (err) {
-      console.error('openclaw agent failed:', err.message);
+      console.error('openclaw agent --deliver failed:', err.message);
       // Fall through to message send
     }
   }
 
-  // Fallback: openclaw message send (creates session on first use, visible dupe)
+  // Fallback: openclaw message send (human sees in thread, AI does not)
   try {
     const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
     if (tg?.threadId) args.push('--thread-id', String(tg.threadId));
     execFileSync('openclaw', args, { stdio: 'inherit', timeout: 10000 });
-    console.log('[DELIVER]', text);
+    console.log('[DELIVER-FALLBACK]', text);
   } catch (err) {
     console.error('openclaw message send failed:', err.message);
-    // Fallback: Telegram Bot API
+    // Last resort: Telegram Bot API direct
     if (tg) {
       try {
         const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
@@ -413,7 +416,7 @@ async function handleMessage(msg, opts = {}) {
       } else {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
         const aiPrefix = isUnscanned ? '⚠️ [unscanned] ' : '📨 ';
-        await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}\n(user sees this in 📬 Agent Inbox — act if needed, don't repeat)`);
+        await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
       }
 
     } catch (err) {

@@ -38,12 +38,14 @@ If nothing is configured, daemon prints `[DELIVER] message` to stdout. Pipe it w
 How the daemon delivers trusted messages to the AI. Fallback chain:
 
 1. `AGENT_DELIVER_CMD` script (custom platforms)
-2. `openclaw agent --session-id` (direct gateway inject — no Telegram duplicate)
-3. `openclaw message send` CLI (fallback, creates session on first use)
-4. Telegram Bot API to the same chat
+2. `openclaw agent --deliver --channel telegram` (AI receives message, processes it, responds in thread)
+3. `openclaw message send` CLI (fallback — human sees in thread, AI does not)
+4. Telegram Bot API to the same chat (last resort)
 5. stdout `[DELIVER]` line
 
-On OpenClaw, step 2 is the primary path. The daemon reads the session UUID from `~/.openclaw/agents/main/sessions/sessions.json` using the Agent Inbox thread ID. First message uses step 3 (session doesn't exist yet), after that step 2 takes over.
+On OpenClaw, step 2 is the primary path. The daemon reads the session UUID from `~/.openclaw/agents/main/sessions/sessions.json` using the Agent Inbox thread ID. The AI runs an isolated agent turn with full workspace/skills/memory context and delivers its reply directly to the Telegram thread.
+
+**Note:** The AI's agent turn uses a separate transcript from the thread's main session. It sees the current message + workspace context but not the thread's full chat history. If the user continues the conversation in the thread, OpenClaw's normal Telegram session takes over with full history.
 
 **Blind receipts** (off by default): set `"blindReceipts": true` in the handle's `config.json` to notify AI about blind messages (handle only, no content). Delivered through the same `deliverToAI()` path.
 
