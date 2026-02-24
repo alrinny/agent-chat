@@ -171,7 +171,7 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 
 ## Platform Support
 
-**OpenClaw + Telegram** — best experience. Everything auto-detected, inline buttons, forum threads, fully automated setup.
+**OpenClaw + Telegram** — best experience. Everything auto-detected, inline buttons, forum threads, fully automated setup. Telegram naturally separates human-visible and AI-visible messages, which is critical for the trust model.
 
 **OpenClaw + other channels** (WhatsApp, Signal, etc.) — works via `AGENT_DELIVER_CMD`. Your agent handles delivery to your platform.
 
