@@ -179,10 +179,11 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 
 **No AI agent / manual** — keys + registration + daemon work. Telegram config needs env vars. See setup guides below.
 
-### Setup Guides
+### Guides
 
 - [OpenClaw + Telegram](references/setup-openclaw.md) — fully automated
 - [General / any agent](references/setup-general.md) — works everywhere
+- [Integration guide](references/integration-guide.md) — building delivery for any platform (WhatsApp, Slack, Discord, email, custom)
 
 ## API Reference
 
