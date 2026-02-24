@@ -260,6 +260,52 @@ else
   echo "   For other platforms: set AGENT_DELIVER_CMD to a script that receives \$AGENT_MSG"
 fi
 
+# --- Step 3b: Bootstrap thread session in OpenClaw sessions.json ---
+# Creates a minimal session entry so the daemon can deliver to AI immediately
+# (without waiting for the user to write in the thread first).
+if [ -n "$THREAD_ID" ] && [ -n "$CHAT_ID" ]; then
+  SESSIONS_FILE="$HOME/.openclaw/agents/main/sessions/sessions.json"
+  SESSION_KEY="agent:main:main:thread:${THREAD_ID}"
+  if [ -f "$SESSIONS_FILE" ]; then
+    # Check if session already exists
+    EXISTING=$(node -e "
+      const s = JSON.parse(require('fs').readFileSync('$SESSIONS_FILE','utf8'));
+      console.log(s['$SESSION_KEY']?.sessionId || '');
+    " 2>/dev/null)
+    if [ -z "$EXISTING" ]; then
+      SESSION_UUID=$(node -e "console.log(require('crypto').randomUUID())")
+      SESSIONS_DIR="$HOME/.openclaw/agents/main/sessions"
+      TRANSCRIPT="${SESSIONS_DIR}/${SESSION_UUID}-topic-${THREAD_ID}.jsonl"
+      touch "$TRANSCRIPT"
+      node -e "
+        const fs = require('fs');
+        const s = JSON.parse(fs.readFileSync('$SESSIONS_FILE','utf8'));
+        s['$SESSION_KEY'] = {
+          sessionId: '$SESSION_UUID',
+          sessionFile: '$TRANSCRIPT',
+          updatedAt: Date.now(),
+          lastChannel: 'telegram',
+          lastTo: 'telegram:$CHAT_ID',
+          lastThreadId: $THREAD_ID,
+          channel: 'telegram',
+          chatType: 'direct',
+          deliveryContext: {
+            channel: 'telegram',
+            to: 'telegram:$CHAT_ID',
+            accountId: 'default',
+            threadId: $THREAD_ID
+          }
+        };
+        fs.writeFileSync('$SESSIONS_FILE', JSON.stringify(s, null, 2));
+      " 2>/dev/null && echo "✅ Thread session bootstrapped" || echo "⚠️  Session bootstrap skipped (non-critical)"
+    else
+      echo "🔍 Thread session already exists (UUID: ${EXISTING:0:8}...)"
+    fi
+  else
+    echo "ℹ️  No sessions.json found — session will be created when you first write in the thread"
+  fi
+fi
+
 # --- Step 4: Persistent daemon (default on, skip with --no-daemon or AGENT_CHAT_DAEMON=0) ---
 INSTALL_DAEMON="${AGENT_CHAT_DAEMON:-1}"
 for arg in "$@"; do
