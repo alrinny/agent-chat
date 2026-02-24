@@ -342,11 +342,19 @@ async function handleMessage(msg) {
       const scan = await scanGuardrail(plaintext, msg.id);
 
       if (scan.flagged && !scan.unavailable) {
-        // Flagged by Lakera — deliver to human only, AI excluded
+        // Flagged by Lakera — same format as blind, but marked as injection
+        const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
+        // For trusted senders: untrust button. For blind: would already be in blind path
+        const untrustButtons = [
+          [{ text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
+        ];
         await sendTelegram(
-          `⚠️ Message from <b>@${escapeHtml(msg.from)}</b> (${escapeHtml(contactLabel)}) flagged: prompt injection detected\n\n` +
-          `🔒 Direct delivery — AI excluded:\n<pre>${escapeHtml(plaintext)}</pre>`
+          `🛡️ <b>@${escapeHtml(msg.from)}</b> <i>(⚠️ prompt injection — AI excluded)</i>:\n\n` +
+          `${escapeHtml(plaintext)}`,
+          untrustButtons
         );
+        // Notify AI (no content)
+        await deliverToAI(`🛡️ Message from @${msg.from} flagged as prompt injection — delivered to human only`);
         return;
       }
 
