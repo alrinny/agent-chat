@@ -101,7 +101,7 @@ describe('Delivery routing', () => {
         const output = execSync(
           `AGENT_SECRETS_DIR="${dir}" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
-          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} deliver-test-006 --no-daemon 2>&1`,
+          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt006-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
         assert.ok(output.includes('Could not create forum topic') || output.includes('Delivering to main chat'),
@@ -122,7 +122,7 @@ describe('Delivery routing', () => {
           `AGENT_SECRETS_DIR="${dir}" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
           `AGENT_CHAT_THREAD_ID=12345 ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
-          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} deliver-test-007 --no-daemon 2>&1`,
+          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt007-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
         const cfg = JSON.parse(readFileSync(join(dir, 'agent-chat-telegram.json'), 'utf8'));
