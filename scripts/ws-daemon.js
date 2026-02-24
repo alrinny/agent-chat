@@ -313,73 +313,64 @@ async function handleMessage(msg) {
         keys.x25519PrivateKey
       );
 
-      if (msg.effectiveRead !== 'trusted') {
-        // BLIND (or unknown) — show plaintext to human via Telegram, AI excluded
-        // Security: unknown effectiveRead values default to blind (safe default)
-        // Daemon sends directly via Bot API — OpenClaw/AI never sees this message
-        const trustTokenRes = await relayPost('/trust-token', { target: msg.from });
-        const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
-        const forwardTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'forward-one', messageId: msg.id });
+      // --- Determine delivery parameters ---
+      const isTrusted = msg.effectiveRead === 'trusted';
+      const scan = isTrusted ? await scanGuardrail(plaintext, msg.id) : { flagged: false, unavailable: false };
+      const isFlagged = scan.flagged && !scan.unavailable;
+      const isUnscanned = scan.unavailable;
+      const aiExcluded = !isTrusted || isFlagged; // blind or injection → AI doesn't see
 
-        // Append plaintext preview to forward URL via fragment (never sent to server)
+      // Warning line (optional, above the message)
+      let warningLine = '';
+      if (isFlagged) warningLine = '🛡️ <b>potential harm detected</b>\n\n';
+      else if (isUnscanned) warningLine = '⚠️ <i>not checked for harm</i>\n\n';
+
+      // Message header
+      const icon = aiExcluded ? '🔒' : '📨';
+      const privacyNote = aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '';
+      const header = `${icon} <b>@${escapeHtml(msg.from)}</b>${privacyNote}:`;
+
+      // Buttons (only when AI is excluded)
+      let buttons = null;
+      if (aiExcluded) {
+        const forwardTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'forward-one', messageId: msg.id });
+        const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
         const preview = plaintext.length > 500 ? plaintext.slice(0, 500) + '…' : plaintext;
         const forwardUrl = `${forwardTokenRes.url}#${encodeURIComponent(preview)}`;
 
-        const buttons = [
-          [{ text: `➡️ Forward to @${handle}`, url: forwardUrl }],
-          [{ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
-        ];
-        await sendTelegram(
-          `🔒 <b>@${escapeHtml(msg.from)}</b> <i>(blind)</i>:\n\n` +
-          `${escapeHtml(plaintext)}`,
-          buttons
-        );
+        const actionRow = [];
+        if (!isTrusted) {
+          // Blind sender → offer Trust
+          const trustTokenRes = await relayPost('/trust-token', { target: msg.from });
+          actionRow.push({ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url });
+        } else {
+          // Trusted sender flagged → offer Untrust
+          const untrustTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'untrust' });
+          actionRow.push({ text: `🔓 Untrust @${msg.from}`, url: untrustTokenRes.url });
+        }
+        actionRow.push({ text: `🚫 Block @${msg.from}`, url: blockTokenRes.url });
 
-        // Notify AI about blind delivery (no content — just the fact)
-        await deliverToAI(`🔒 Blind message from @${msg.from} delivered to Telegram (content hidden from AI)`);
-        return;
+        buttons = [
+          [{ text: `➡️ Forward to @${handle}`, url: forwardUrl }],
+          actionRow
+        ];
       }
 
-      // TRUSTED — guardrail scan (3-level fallback)
-      const scan = await scanGuardrail(plaintext, msg.id);
-
-      if (scan.flagged && !scan.unavailable) {
-        // Flagged by Lakera — same format as blind, buttons depend on trust status
-        const forwardTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'forward-one', messageId: msg.id });
-        const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
-
-        const preview = plaintext.length > 500 ? plaintext.slice(0, 500) + '…' : plaintext;
-        const forwardUrl = `${forwardTokenRes.url}#${encodeURIComponent(preview)}`;
-
-        // Trusted sender: Forward + Untrust + Block
-        const untrustTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'untrust' });
-        const buttons = [
-          [{ text: `➡️ Forward to @${handle}`, url: forwardUrl }],
-          [{ text: `🔓 Untrust @${msg.from}`, url: untrustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
-        ];
-
-        await sendTelegram(
-          `🛡️ <b>@${escapeHtml(msg.from)}</b> <i>(injection)</i>:\n\n` +
-          `${escapeHtml(plaintext)}`,
-          buttons
-        );
-        // Notify AI (no content)
-        await deliverToAI(`🛡️ Message from @${msg.from} flagged as prompt injection — delivered to human only`);
-        return;
-      }
-
-      // Show in Agent Inbox thread (human sees all messages in one place)
-      const channel = msg.channel ? `#${msg.channel} — ` : '';
-      const statusLabel = scan.unavailable ? 'unscanned' : 'trusted';
-      const prefix = scan.unavailable ? '⚠️' : '📨';
+      // Send to Telegram (human always sees)
       await sendTelegram(
-        `${prefix} <b>@${escapeHtml(msg.from)}</b> <i>(${statusLabel})</i>:\n\n` +
-        `${escapeHtml(plaintext)}`
+        `${warningLine}${header}\n\n${escapeHtml(plaintext)}`,
+        buttons
       );
 
-      // Deliver to AI (AI sees trusted message content)
-      const aiPrefix = scan.unavailable ? '⚠️ [unscanned] ' : '📨 ';
-      await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
+      // AI delivery
+      if (aiExcluded) {
+        const reason = isFlagged ? 'flagged as prompt injection' : 'blind (untrusted sender)';
+        await deliverToAI(`🔒 Message from @${msg.from} — ${reason}, delivered to human only`);
+      } else {
+        const channel = msg.channel ? `#${msg.channel} — ` : '';
+        const aiPrefix = isUnscanned ? '⚠️ [unscanned] ' : '📨 ';
+        await deliverToAI(`${aiPrefix}${channel}@${msg.from} (${contactLabel}): ${plaintext}`);
+      }
 
     } catch (err) {
       console.error('Decrypt error:', err);
