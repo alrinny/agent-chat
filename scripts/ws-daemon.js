@@ -293,8 +293,12 @@ async function handleMessage(msg) {
         const blockTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'block' });
         const forwardTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'forward-one', messageId: msg.id });
 
+        // Append plaintext preview to forward URL via fragment (never sent to server)
+        const preview = plaintext.length > 500 ? plaintext.slice(0, 500) + '…' : plaintext;
+        const forwardUrl = `${forwardTokenRes.url}#${encodeURIComponent(preview)}`;
+
         const buttons = [
-          [{ text: `➡️ Forward to AI`, url: forwardTokenRes.url }],
+          [{ text: `➡️ Forward to @${handle}`, url: forwardUrl }],
           [{ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url }, { text: `🚫 Block @${msg.from}`, url: blockTokenRes.url }]
         ];
         await sendTelegram(
