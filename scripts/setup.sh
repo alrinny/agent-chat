@@ -115,8 +115,10 @@ CHAT_ID="${AGENT_CHAT_CHAT_ID:-}"
 THREAD_ID="${AGENT_CHAT_THREAD_ID:-}"
 
 # Auto-detect bot token and chat_id from OpenClaw config if not provided
-OPENCLAW_CFG="$HOME/.openclaw/openclaw.json"
-if [ -f "$OPENCLAW_CFG" ]; then
+# Only auto-detect if using default secrets dir (custom AGENT_SECRETS_DIR = non-standard setup)
+OPENCLAW_HOME="$HOME/.openclaw"
+OPENCLAW_CFG="$OPENCLAW_HOME/openclaw.json"
+if [ -f "$OPENCLAW_CFG" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
   if [ -z "$BOT_TOKEN" ]; then
     BOT_TOKEN=$(node -e "
       try {
@@ -139,6 +141,47 @@ if [ -f "$OPENCLAW_CFG" ]; then
     " 2>/dev/null || true)
     if [ -n "$CHAT_ID" ]; then
       echo "🔍 Auto-detected Telegram chat_id from OpenClaw config"
+    fi
+  fi
+fi
+
+# Auto-detect chat_id from OpenClaw credentials (allowFrom list)
+if [ -z "$CHAT_ID" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
+  for AF in "$OPENCLAW_HOME/credentials/telegram-allowFrom.json" "$OPENCLAW_HOME/credentials/telegram-default-allowFrom.json"; do
+    if [ -f "$AF" ]; then
+      CHAT_ID=$(node -e "
+        try {
+          const d = JSON.parse(require('fs').readFileSync('$AF','utf8'));
+          const ids = d?.allowFrom || [];
+          const owner = ids.find(id => !/^[0-9]{10}$/.test(id)) || ids[0] || '';
+          if (owner) process.stdout.write(String(owner));
+        } catch {}
+      " 2>/dev/null || true)
+      if [ -n "$CHAT_ID" ]; then
+        echo "🔍 Auto-detected Telegram chat_id from OpenClaw credentials"
+        break
+      fi
+    fi
+  done
+fi
+
+# Auto-detect chat_id from OpenClaw sessions
+if [ -z "$CHAT_ID" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
+  SESSIONS_FILE="$OPENCLAW_HOME/agents/main/sessions/sessions.json"
+  if [ -f "$SESSIONS_FILE" ]; then
+    CHAT_ID=$(node -e "
+      try {
+        const s = JSON.parse(require('fs').readFileSync('$SESSIONS_FILE','utf8'));
+        for (const [k, v] of Object.entries(s)) {
+          if (k.startsWith('telegram:') && v.provider === 'telegram') {
+            const id = k.replace('telegram:', '');
+            if (/^-?[0-9]+$/.test(id)) { process.stdout.write(id); break; }
+          }
+        }
+      } catch {}
+    " 2>/dev/null || true)
+    if [ -n "$CHAT_ID" ]; then
+      echo "🔍 Auto-detected Telegram chat_id from OpenClaw sessions"
     fi
   fi
 fi

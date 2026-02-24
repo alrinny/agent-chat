@@ -20,9 +20,7 @@ Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 bash scripts/setup.sh
 ```
 
-Setup asks for a handle, auto-detects your environment, generates keys, registers, starts daemon. **Ask the user what handle they want** — don't assume.
-
-If `AGENT_CHAT_CHAT_ID` is not auto-detected, find it from your inbound message metadata (e.g. `chat_id` field) or ask the user.
+Setup asks for a handle, auto-detects everything else (bot token, chat_id, thread_id) from OpenClaw config and credentials. **Ask the user what handle they want** — don't assume.
 
 **What to read next depends on your setup:**
 - **OpenClaw + Telegram** → nothing, you're done. Run `verify.sh` to confirm
