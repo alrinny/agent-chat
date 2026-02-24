@@ -300,6 +300,9 @@ async function handleMessage(msg) {
           `${escapeHtml(plaintext)}`,
           buttons
         );
+
+        // Notify AI about blind delivery (no content — just the fact)
+        await deliverToAI(`🔒 Blind message from @${msg.from} delivered to Telegram (content hidden from AI)`);
         return;
       }
 
@@ -411,7 +414,9 @@ async function connect() {
 
   ws.onmessage = async (event) => {
     try {
-      const msg = JSON.parse(event.data);
+      const raw = JSON.parse(event.data);
+      // DO pushes InboxMessage without type for regular messages; normalize
+      const msg = raw.type ? raw : { type: 'message', ...raw };
       await handleMessage(msg);
 
       // Ack only trusted messages via HTTP. Blind stay in inbox for redeliver after trust change
