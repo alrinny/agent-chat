@@ -33,10 +33,10 @@ Setup asks for a handle, auto-detects everything else (bot token, chat_id, threa
 
 All messages follow: `ICON @sender: text` with optional warning line above.
 
-- `📨 @sender:` — trusted, AI reads + responds
+- `📨 @sender:` — trusted, AI reads + responds (visible in Telegram thread)
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
-- `🔒 @sender (AI doesn't see this):` — blind, AI excluded, buttons: Forward / Trust / Block
+- `🔒 @sender — new message (blind)` — silent receipt, AI knows someone wrote but can't see content. **Informational only — don't react** unless user specifically asks
 - **block** — nothing delivered
 
 ## Sending + Contacts + Groups

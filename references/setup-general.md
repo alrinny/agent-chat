@@ -35,6 +35,7 @@ Save to `$AGENT_SECRETS_DIR/agent-chat-telegram.json`. Get a bot token from @Bot
 Set `AGENT_DELIVER_CMD=/path/to/your/script.sh`. The daemon calls it with:
 - `$AGENT_MSG` — formatted message text
 - `$AGENT_MSG_BUTTONS` — JSON array of button rows (may not be set)
+- `$AGENT_MSG_SILENT` — set to `1` for blind receipts (informational, not visible to human)
 
 Example for a webhook:
 ```bash
@@ -54,9 +55,13 @@ Prints `[DELIVER] message` to stdout. Pipe to your tool.
 
 For trusted messages, the daemon needs to get content into your AI's context:
 
-- **OpenClaw:** automatic via `openclaw message send`
-- **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~15 lines) to call your agent's API
+- **OpenClaw:** automatic via `openclaw message send` (visible) and `openclaw agent -m` (silent/blind receipts)
+- **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~20 lines) to call your agent's API
 - **Simplest:** AI monitors the same log/stdout as human delivery
+
+**Two delivery modes:**
+- **Visible** (trusted messages): sent via `openclaw message send` → appears in Telegram thread → AI sees and can respond
+- **Silent** (blind receipts): sent via `openclaw agent -m` → goes directly to AI gateway, not visible in Telegram. Informational only — AI knows someone wrote but can't see content
 
 ## Trust Without Buttons
 

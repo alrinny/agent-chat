@@ -230,12 +230,23 @@ function deliverFallback(text, buttons = null) {
   }
 }
 
-async function deliverToAI(text) {
+async function deliverToAI(text, { silent = false } = {}) {
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
-    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
+    const env = { ...process.env, AGENT_MSG: text };
+    if (silent) env.AGENT_MSG_SILENT = '1';
+    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env });
+  } else if (silent) {
+    // Silent delivery: directly to AI via gateway, not visible in Telegram
+    try {
+      execFileSync('openclaw', ['agent', '-m', text], { stdio: 'inherit', timeout: 10000 });
+      console.log('[DELIVER-SILENT]', text);
+    } catch (err) {
+      // Fallback: stdout only (don't send to Telegram for silent messages)
+      console.log('[DELIVER-SILENT]', text);
+    }
   } else {
-    // Try openclaw CLI → Telegram Bot API → fallback to stdout
+    // Visible delivery: openclaw message send → Telegram → AI
     const tg = loadTelegramConfig();
     try {
       const args = ['message', 'send', '--message', text, '--target', String(tg?.chatId || '')];
@@ -370,8 +381,8 @@ async function handleMessage(msg, opts = {}) {
 
       // AI delivery
       if (aiExcluded) {
-        const reason = isFlagged ? 'flagged as prompt injection' : 'blind (untrusted sender)';
-        await deliverToAI(`🔒 Message from @${msg.from} — ${reason}, delivered to human only`);
+        const reason = isFlagged ? 'flagged' : 'blind';
+        await deliverToAI(`🔒 @${msg.from} — new message (${reason})`, { silent: true });
       } else {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
         const aiPrefix = isUnscanned ? '⚠️ [unscanned] ' : '📨 ';
