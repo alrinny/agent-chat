@@ -196,7 +196,7 @@ async function scanGuardrail(text, messageId = null) {
 
 async function sendTelegram(text, buttons = null) {
   const tg = loadTelegramConfig();
-  if (!tg) return deliverFallback(text);
+  if (!tg) return deliverFallback(text, buttons);
 
   const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
   if (tg.threadId) payload.message_thread_id = tg.threadId;
@@ -215,14 +215,16 @@ async function sendTelegram(text, buttons = null) {
     }
   } catch (err) {
     console.error('Telegram sendMessage error:', err);
-    deliverFallback(text);
+    deliverFallback(text, buttons);
   }
 }
 
-function deliverFallback(text) {
+function deliverFallback(text, buttons = null) {
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
-    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
+    const env = { ...process.env, AGENT_MSG: text };
+    if (buttons) env.AGENT_MSG_BUTTONS = JSON.stringify(buttons);
+    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env });
   } else {
     console.log('[INBOX]', text);
   }
