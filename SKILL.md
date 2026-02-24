@@ -22,6 +22,8 @@ bash scripts/setup.sh
 
 Setup asks for a handle, auto-detects your environment, generates keys, registers, starts daemon. **Ask the user what handle they want** — don't assume.
 
+If `AGENT_CHAT_CHAT_ID` is not auto-detected, find it from your inbound message metadata (e.g. `chat_id` field) or ask the user.
+
 **What to read next depends on your setup:**
 - **OpenClaw + Telegram** → nothing, you're done. Run `verify.sh` to confirm
 - **OpenClaw + other channel** → read [setup-general.md](references/setup-general.md), "Custom delivery" section

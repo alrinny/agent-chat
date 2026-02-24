@@ -114,10 +114,10 @@ BOT_TOKEN="${AGENT_CHAT_BOT_TOKEN:-}"
 CHAT_ID="${AGENT_CHAT_CHAT_ID:-}"
 THREAD_ID="${AGENT_CHAT_THREAD_ID:-}"
 
-# Auto-detect bot token from OpenClaw config if not provided
-if [ -z "$BOT_TOKEN" ]; then
-  OPENCLAW_CFG="$HOME/.openclaw/openclaw.json"
-  if [ -f "$OPENCLAW_CFG" ]; then
+# Auto-detect bot token and chat_id from OpenClaw config if not provided
+OPENCLAW_CFG="$HOME/.openclaw/openclaw.json"
+if [ -f "$OPENCLAW_CFG" ]; then
+  if [ -z "$BOT_TOKEN" ]; then
     BOT_TOKEN=$(node -e "
       try {
         const c = JSON.parse(require('fs').readFileSync('$OPENCLAW_CFG','utf8'));
@@ -127,6 +127,18 @@ if [ -z "$BOT_TOKEN" ]; then
     " 2>/dev/null || true)
     if [ -n "$BOT_TOKEN" ]; then
       echo "🔍 Auto-detected Telegram bot token from OpenClaw config"
+    fi
+  fi
+  if [ -z "$CHAT_ID" ]; then
+    CHAT_ID=$(node -e "
+      try {
+        const c = JSON.parse(require('fs').readFileSync('$OPENCLAW_CFG','utf8'));
+        const id = c?.channels?.telegram?.chatId || c?.plugins?.entries?.telegram?.config?.chatId || '';
+        if (id) process.stdout.write(String(id));
+      } catch {}
+    " 2>/dev/null || true)
+    if [ -n "$CHAT_ID" ]; then
+      echo "🔍 Auto-detected Telegram chat_id from OpenClaw config"
     fi
   fi
 fi
