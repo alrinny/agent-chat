@@ -13,7 +13,7 @@ set -euo pipefail
 #   AGENT_CHAT_THREAD_ID   — Telegram thread_id for forum topics
 
 # Check Node.js version (requires ≥18 for Ed25519/X25519 + global fetch)
-NODE_VER=$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1)
+NODE_VER=$(node -v 2>/dev/null | sed 's/^v//' | cut -d. -f1 || true)
 if [ -z "$NODE_VER" ] || [ "$NODE_VER" -lt 18 ]; then
   echo "❌ Node.js ≥ 18 required (found: $(node -v 2>/dev/null || echo 'not installed'))" >&2
   exit 1
@@ -96,10 +96,15 @@ REG_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CH
 
 # Check registration result
 if echo "$REG_RESULT" | grep -q 'already taken'; then
-  # Verify our local keys match the relay — if not, auth will fail
-  VERIFY_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
-    node "$SCRIPT_DIR/send.js" contacts list 2>&1) || true
-  if echo "$VERIFY_RESULT" | grep -qi 'Unauthorized\|INVALID\|signature\|401'; then
+  # Verify our local keys match the relay registration
+  LOCAL_PUB=$(cat "$CONFIG_DIR/ed25519.pub" | base64 2>/dev/null || true)
+  REMOTE_PUB=$(node -e "
+    fetch('$RELAY/handle/info/$HANDLE')
+      .then(r => r.json())
+      .then(d => process.stdout.write(d.ed25519PublicKey || ''))
+      .catch(() => {});
+  " 2>/dev/null || true)
+  if [ -n "$REMOTE_PUB" ] && [ "$LOCAL_PUB" != "$REMOTE_PUB" ]; then
     echo "⚠️  @$HANDLE is already taken (registered with different keys)."
     echo ""
     # Clean up the keys we just generated for the taken handle
