@@ -151,9 +151,10 @@ else
   echo "ℹ️  No Telegram config — messages will be delivered via openclaw CLI or stdout"
 fi
 
-# --- Step 4: Persistent daemon (if --daemon flag or AGENT_CHAT_DAEMON=1) ---
-INSTALL_DAEMON="${AGENT_CHAT_DAEMON:-}"
+# --- Step 4: Persistent daemon (default on, skip with --no-daemon or AGENT_CHAT_DAEMON=0) ---
+INSTALL_DAEMON="${AGENT_CHAT_DAEMON:-1}"
 for arg in "$@"; do
+  [ "$arg" = "--no-daemon" ] && INSTALL_DAEMON=0
   [ "$arg" = "--daemon" ] && INSTALL_DAEMON=1
 done
 
@@ -241,5 +242,5 @@ echo "✅ @$HANDLE setup complete!"
 if [ "$INSTALL_DAEMON" != "1" ]; then
   echo ""
   echo "Start daemon:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
-  echo "   Persistent: bash $0 $HANDLE --daemon"
+  echo "   Persistent: bash $0 $HANDLE"
 fi

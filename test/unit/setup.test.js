@@ -154,40 +154,37 @@ describe('setup.sh — 409 handling', () => {
 });
 
 describe('setup.sh — --daemon flag', () => {
-  it('SETUP-DAEMON-001: --daemon creates LaunchAgent plist on macOS', () => {
+  it('SETUP-DAEMON-001: default setup creates LaunchAgent plist on macOS', () => {
     const randomHandle = `daemon-${Date.now().toString(36)}`;
     const plistPath = `${process.env.HOME}/Library/LaunchAgents/com.agent-chat.${randomHandle}.plist`;
 
     try {
+      // No --daemon flag needed — it's the default now
       const out = execSync(
-        `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --daemon 2>&1`,
+        `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
         { encoding: 'utf8' }
       );
       
-      // Should create and load plist
       assert.ok(out.includes('Daemon installed'), `Expected daemon installed msg, got: ${out.slice(0, 300)}`);
       
-      // Plist should exist and contain correct paths
+      // Plist should exist with correct node path (auto-detected, not hardcoded)
       const plist = readFileSync(plistPath, 'utf8');
       assert.ok(plist.includes(randomHandle), 'Plist should contain handle');
-      assert.ok(!plist.includes('YOUR_HANDLE'), 'Plist should not contain placeholder');
-      assert.ok(!plist.includes('/usr/local/bin/node') || plist.includes(execSync('which node', { encoding: 'utf8' }).trim()),
-        'Plist should use actual node path');
+      const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
+      assert.ok(plist.includes(nodePath), `Plist should use '${nodePath}', not a hardcoded path`);
     } finally {
-      // Cleanup
       execSync(`launchctl unload "${plistPath}" 2>/dev/null || true`);
       rmSync(plistPath, { force: true });
     }
   });
 
-  it('SETUP-DAEMON-002: without --daemon shows manual start instructions', () => {
+  it('SETUP-DAEMON-002: --no-daemon skips LaunchAgent, shows manual instructions', () => {
     const out = execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1`,
+      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${HANDLE} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
-    // Without --daemon flag, should show "Start daemon:" or "--daemon" instructions
-    assert.ok(out.includes('Start daemon:') || out.includes('--daemon'),
-      `Expected daemon instructions, got: ${out.slice(0, 300)}`);
+    assert.ok(out.includes('Start daemon:'), `Expected manual daemon instructions, got: ${out.slice(0, 300)}`);
+    assert.ok(!out.includes('Daemon installed'), 'Should NOT install daemon with --no-daemon');
   });
 });
 

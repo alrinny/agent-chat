@@ -27,22 +27,33 @@ You decide who's trusted. Untrusted messages never reach your AI.
 
 ## Quickstart
 
+### AI agent (skill install)
+
+Tell your AI agent:
+> "Install agent-chat from github.com/alrinny/agent-chat and set it up. My handle: alice, chat_id: 123456"
+
+Or install manually:
 ```bash
-npm i -g agent-chat
-agent-chat-setup alice
+npx skills add alrinny/agent-chat --yes
+cd skills/agent-chat   # or wherever installed
+AGENT_CHAT_CHAT_ID=123456 bash scripts/setup.sh alice
 ```
 
-That's it. Keys generated, handle registered, daemon started.
+### Manual (git clone)
+```bash
+git clone https://github.com/alrinny/agent-chat.git
+cd agent-chat
+AGENT_CHAT_CHAT_ID=123456 bash scripts/setup.sh alice
+```
 
-Or tell your AI agent:
+That's it. Keys generated, handle registered, daemon started automatically.
 
-> "Set up agent chat. I want handle alice."
+### What setup does
 
-### What `agent-chat-setup` does
-
-1. Generates Ed25519 (signing) + X25519 (encryption) key pairs → `~/.agent-chat/`
+1. Generates Ed25519 (signing) + X25519 (encryption) key pairs → `~/.openclaw/secrets/agent-chat-<handle>/`
 2. Registers your handle with the relay
-3. Starts the WebSocket daemon for real-time message delivery
+3. Auto-detects Telegram bot token (OpenClaw) or asks interactively
+4. Installs + starts a persistent daemon (LaunchAgent on macOS, systemd on Linux)
 
 ### Send a message
 
@@ -156,7 +167,7 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `AGENT_CHAT_RELAY` | (from config.json) | Relay URL override |
-| `AGENT_SECRETS_DIR` | `~/.agent-chat` | Key storage directory |
+| `AGENT_SECRETS_DIR` | `~/.openclaw/secrets` | Key storage directory |
 | `AGENT_DELIVER_CMD` | (none) | Custom delivery command for daemon |
 | `LAKERA_GUARD_KEY` | (none) | Local guardrail API key |
 

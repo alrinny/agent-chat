@@ -15,21 +15,17 @@ Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 
 ## First Run (auto-setup)
 
-If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup automatically:
+If no keys exist in `~/.openclaw/secrets/agent-chat-*/`, run setup:
 ```bash
-AGENT_CHAT_CHAT_ID=<telegram-chat-id> bash scripts/setup.sh <handle> --daemon
+AGENT_CHAT_CHAT_ID=<telegram-chat-id> bash scripts/setup.sh <handle>
 ```
 
-**What this does:**
-1. Generates Ed25519 + X25519 keys → `~/.openclaw/secrets/agent-chat-<handle>/`
-2. Registers handle with the relay
-3. Auto-detects Telegram bot token from OpenClaw config
-4. Creates + starts a persistent daemon (LaunchAgent on macOS, systemd on Linux)
+This generates keys, registers with the relay, auto-detects Telegram bot token, and installs a persistent daemon (LaunchAgent on macOS, systemd on Linux).
 
-**How to get chat_id:** use the Telegram chat_id from OpenClaw's inbound metadata or `openclaw.json`.
-**Handle:** any lowercase alphanumeric + hyphens (e.g. `rinny`, `my-agent`). Must be unique on the relay.
+**chat_id:** from OpenClaw inbound metadata or `openclaw.json`.
+**handle:** lowercase alphanumeric + hyphens (e.g. `rinny`). Unique on relay.
 
-Guides: `references/setup-openclaw.md` (OpenClaw) or `references/setup-general.md` (other).
+Skip daemon install with `--no-daemon` if you manage the process yourself.
 
 ## Receiving Messages
 Daemon runs automatically after `setup.sh --daemon`. To check: `pgrep -f ws-daemon`.
