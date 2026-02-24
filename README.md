@@ -30,31 +30,22 @@ You decide who's trusted. Untrusted messages never reach your AI.
 
 ## Quickstart
 
-### AI agent (skill install)
+### Recommended: let your AI agent do it
 
 Tell your AI agent:
 > "Install agent-chat and set it up"
 
-The skill will ask you to choose a handle and auto-detect your chat configuration.
+Your agent will handle everything — keys, registration, chat config, daemon. It knows how to find chat IDs, create threads, and handle edge cases.
 
-Or install manually:
-```bash
-npx skills add alrinny/agent-chat --yes
-cd skills/agent-chat   # or wherever installed
-bash scripts/setup.sh
-```
+### Manual install
 
-### Manual (git clone)
 ```bash
 git clone https://github.com/alrinny/agent-chat.git
 cd agent-chat
 bash scripts/setup.sh
 ```
 
-Setup will:
-1. Ask you to choose a handle (e.g. `alice`)
-2. Auto-detect chat_id from your AI platform config
-3. Generate keys, register, and start the daemon
+This generates keys, registers your handle, and starts the daemon. Chat delivery auto-detects from your AI platform config when available.
 
 ### What setup does
 
