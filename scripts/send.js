@@ -4,17 +4,18 @@
  * Commands: register, send, status, contacts, handle-create, handle-permission, handle-join, handle-leave
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   generateEd25519KeyPair, generateX25519KeyPair,
   signMessage, encryptForRecipient
 } from '../lib/crypto.js';
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
-import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL } from '../lib/config.js';
+import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL, resolveKeysDir, resolveHandleDir, resolveDataDir } from '../lib/config.js';
 import { addContact, removeContact, listContacts } from '../lib/contacts.js';
 
-const SECRETS_DIR = process.env.AGENT_SECRETS_DIR || join(process.env.HOME, '.openclaw', 'secrets');
+const KEYS_DIR = resolveKeysDir();
+const DATA_DIR = resolveDataDir();
 const RELAY = process.env.AGENT_CHAT_RELAY || DEFAULT_RELAY_URL;
 
 const [,, command, ...args] = process.argv;
@@ -23,19 +24,19 @@ const [,, command, ...args] = process.argv;
 
 function findConfigDir(handleHint) {
   if (handleHint) {
-    const dir = join(SECRETS_DIR, `agent-chat-${handleHint}`);
-    return dir;
+    return resolveHandleDir(handleHint);
   }
-  // Auto-detect from secrets directory
+  // Auto-detect from keys directory
   try {
-    const dirs = readdirSync(SECRETS_DIR).filter(d =>
-      d.startsWith('agent-chat-') && statSync(join(SECRETS_DIR, d)).isDirectory()
-    );
+    const dirs = readdirSync(KEYS_DIR).filter(d => {
+      const full = join(KEYS_DIR, d);
+      return statSync(full).isDirectory() && existsSync(join(full, 'config.json'));
+    });
     if (dirs.length === 0) { console.error('No handle found. Run setup.sh first.'); process.exit(1); }
-    if (dirs.length > 1) { console.error(`Multiple handles found: ${dirs.map(d => d.replace('agent-chat-', '')).join(', ')}. Set AGENT_CHAT_HANDLE env var.`); process.exit(1); }
-    return join(SECRETS_DIR, dirs[0]);
+    if (dirs.length > 1) { console.error(`Multiple handles found: ${dirs.join(', ')}. Set AGENT_CHAT_HANDLE env var.`); process.exit(1); }
+    return join(KEYS_DIR, dirs[0]);
   } catch {
-    console.error('Cannot read secrets directory. Run setup.sh first.');
+    console.error('Cannot read keys directory. Run setup.sh first.');
     process.exit(1);
   }
 }
@@ -250,25 +251,24 @@ switch (command) {
 
   case 'contacts': {
     const [subCmd, ...subArgs] = args;
-    const configDir = findConfigDir(process.env.AGENT_CHAT_HANDLE);
 
     switch (subCmd) {
       case 'add': {
         const [cHandle, ...labelParts] = subArgs;
         const label = labelParts.join(' ');
         if (!cHandle || !label) { console.error('Usage: send.js contacts add <handle> <label>'); process.exit(1); }
-        addContact(configDir, cHandle, label);
+        addContact(null, cHandle, label);
         console.log(`Added @${cHandle} → "${label}"`);
         break;
       }
       case 'remove': {
         if (!subArgs[0]) { console.error('Usage: send.js contacts remove <handle>'); process.exit(1); }
-        const existed = removeContact(configDir, subArgs[0]);
+        const existed = removeContact(null, subArgs[0]);
         console.log(existed ? `Removed @${subArgs[0]}` : `@${subArgs[0]} not found`);
         break;
       }
       case 'list': {
-        const contacts = listContacts(configDir);
+        const contacts = listContacts(null);
         if (contacts.length === 0) { console.log('No contacts'); break; }
         for (const c of contacts) {
           console.log(`@${c.handle} → "${c.label}"${c.notes ? ` (${c.notes})` : ''}`);

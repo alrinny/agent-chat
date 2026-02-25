@@ -97,7 +97,7 @@ describe('setup.sh — idempotent key reuse', () => {
   it('SETUP-REUSE-001: skips keygen if keys already exist', () => {
     // CONFIG_DIR already has keys from the before() hook above
     const out = execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1 || true`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1 || true`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('Existing keys found'), `Expected "Existing keys found" in: ${out.slice(0, 200)}`);
@@ -111,7 +111,7 @@ describe('setup.sh — idempotent key reuse', () => {
     assert.ok(!existsSync(configPath));
 
     execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1 || true`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh ${HANDLE} 2>&1 || true`,
       { encoding: 'utf8' }
     );
     assert.ok(existsSync(configPath), 'config.json should be recreated');
@@ -123,7 +123,7 @@ describe('setup.sh — 409 handling', () => {
     // Use random handle to avoid 409
     const randomHandle = `test-${Date.now().toString(36)}`;
     const out = execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('setup complete'), `Expected "setup complete", got: ${out.slice(0, 300)}`);
@@ -136,12 +136,12 @@ describe('setup.sh — 409 handling', () => {
     // First register our base handle (from before() hook)
     const freshHandle = `test-${Date.now().toString(36)}`;
     execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     // Re-run with same keys — should succeed
     const out = execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('setup complete'), `Expected "setup complete", got: ${out.slice(0, 300)}`);
@@ -151,7 +151,7 @@ describe('setup.sh — 409 handling', () => {
 
   it('SETUP-409-003: unreachable relay gives clear error', () => {
     const out = execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh unreachable-test 2>&1 || true`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=http://localhost:1 bash ${SCRIPT_DIR}/setup.sh unreachable-test 2>&1 || true`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('Cannot reach relay') || out.includes('Cannot connect'),
@@ -170,7 +170,7 @@ describe('setup.sh — --daemon flag', () => {
     try {
       // No --daemon flag needed — it's the default now
       const out = execSync(
-        `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
+        `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
         { encoding: 'utf8' }
       );
       
@@ -190,7 +190,7 @@ describe('setup.sh — --daemon flag', () => {
   it('SETUP-DAEMON-002: --no-daemon skips LaunchAgent, shows manual instructions', () => {
     const randomHandle = `test-${Date.now().toString(36)}`;
     const out = execSync(
-      `AGENT_SECRETS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('Start daemon:'), `Expected manual daemon instructions, got: ${out.slice(0, 300)}`);

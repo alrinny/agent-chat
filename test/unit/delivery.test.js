@@ -9,7 +9,7 @@
 
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync, mkdirSync, rmSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'fs';
 import { join } from 'path';
 import { execSync } from 'child_process';
 
@@ -19,10 +19,10 @@ describe('Delivery routing', () => {
 
   describe('Telegram config loading', () => {
     it('DELIVER-001: loadTelegramConfig returns null when no config file', () => {
-      // Daemon uses AGENT_SECRETS_DIR env var; when missing, returns null
+      // Daemon uses AGENT_CHAT_KEYS_DIR env var; when missing, returns null
       const result = execSync(
         `node --input-type=module -e "
-          process.env.AGENT_SECRETS_DIR = '/tmp/nonexistent-deliver-test';
+          process.env.AGENT_CHAT_KEYS_DIR = '/tmp/nonexistent-deliver-test';
           const m = await import('${DAEMON_PATH}');
           // loadTelegramConfig is internal, but sendTelegram falls back gracefully
           console.log('ok');
@@ -99,7 +99,7 @@ describe('Delivery routing', () => {
       const dir = `/tmp/deliver-test-006-${Date.now()}`;
       try {
         const output = execSync(
-          `AGENT_SECRETS_DIR="${dir}" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
+          `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
           `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt006-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
@@ -107,7 +107,7 @@ describe('Delivery routing', () => {
         assert.ok(output.includes('Could not create forum topic') || output.includes('Delivering to main chat'),
           'should indicate forum topic creation failed gracefully');
         
-        const cfg = JSON.parse(readFileSync(join(dir, 'agent-chat-telegram.json'), 'utf8'));
+        const cfg = JSON.parse(readFileSync(join(dir, 'telegram.json'), 'utf8'));
         assert.equal(cfg.chatId, '999');
         assert.equal(cfg.threadId, undefined, 'threadId should not be set when forum unavailable');
       } finally {
@@ -119,13 +119,13 @@ describe('Delivery routing', () => {
       const dir = `/tmp/deliver-test-007-${Date.now()}`;
       try {
         execSync(
-          `AGENT_SECRETS_DIR="${dir}" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
+          `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
           `AGENT_CHAT_THREAD_ID=12345 ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
           `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt007-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
-        const cfg = JSON.parse(readFileSync(join(dir, 'agent-chat-telegram.json'), 'utf8'));
+        const cfg = JSON.parse(readFileSync(join(dir, 'telegram.json'), 'utf8'));
         assert.equal(cfg.threadId, 12345, 'threadId should come from env var');
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -136,19 +136,15 @@ describe('Delivery routing', () => {
       const dir = `/tmp/deliver-test-008-${Date.now()}`;
       try {
         const output = execSync(
-          `AGENT_SECRETS_DIR="${dir}" ` +
+          `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
           `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt008-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
         assert.ok(output.includes('Registered'), 'should register successfully');
         // No telegram config should exist
-        try {
-          readFileSync(join(dir, 'agent-chat-telegram.json'));
-          assert.fail('telegram config should not exist');
-        } catch (e) {
-          assert.equal(e.code, 'ENOENT');
-        }
+        assert.ok(!existsSync(join(dir, 'telegram.json')), 'telegram.json should not exist');
+        assert.ok(!existsSync(join(dir, 'keys', 'telegram-token.json')), 'telegram-token.json should not exist');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

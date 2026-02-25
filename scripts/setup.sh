@@ -7,7 +7,8 @@ set -euo pipefail
 #
 # Env vars (all optional):
 #   AGENT_CHAT_RELAY       — relay URL (default: production relay)
-#   AGENT_SECRETS_DIR      — secrets directory (default: ~/.openclaw/secrets)
+#   AGENT_CHAT_DIR         — data directory (default: <workspace>/agent-chat/)
+#   AGENT_CHAT_KEYS_DIR    — keys directory (default: <AGENT_CHAT_DIR>/keys/)
 #   AGENT_CHAT_BOT_TOKEN   — Telegram bot token (auto-detected from OpenClaw if not set)
 #   AGENT_CHAT_CHAT_ID     — Telegram chat_id
 #   AGENT_CHAT_THREAD_ID   — Telegram thread_id for forum topics
@@ -42,15 +43,45 @@ if [ -z "$HANDLE" ]; then
     echo "  AGENT_CHAT_BOT_TOKEN  — Telegram bot token"
     echo "  AGENT_CHAT_CHAT_ID    — Telegram chat_id"
     echo "  AGENT_CHAT_THREAD_ID  — Telegram thread_id (forum topics)"
-    echo "  AGENT_SECRETS_DIR     — secrets dir (default: ~/.openclaw/secrets)"
+    echo "  AGENT_CHAT_DIR        — data dir (default: <workspace>/agent-chat/)"
+    echo "  AGENT_CHAT_KEYS_DIR   — keys dir (default: <data-dir>/keys/)"
     exit 1
   fi
 fi
 
 RELAY="${AGENT_CHAT_RELAY:-https://agent-chat-relay.rynn-openclaw.workers.dev}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-SECRETS_DIR="${AGENT_SECRETS_DIR:-$HOME/.openclaw/secrets}"
-CONFIG_DIR="$SECRETS_DIR/agent-chat-$HANDLE"
+
+# Resolve workspace
+if [ -n "${AGENT_CHAT_WORKSPACE:-}" ]; then
+  WORKSPACE="$AGENT_CHAT_WORKSPACE"
+elif [ -f "$HOME/.openclaw/openclaw.json" ]; then
+  WORKSPACE=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$HOME/.openclaw/openclaw.json','utf8'));console.log(c.workspace||'')}catch{}" 2>/dev/null || true)
+  [ -z "$WORKSPACE" ] && WORKSPACE="$HOME/.openclaw/workspace"
+else
+  WORKSPACE="$HOME/.openclaw/workspace"
+fi
+
+# Resolve data dir and keys dir
+DATA_DIR="${AGENT_CHAT_DIR:-$WORKSPACE/agent-chat}"
+KEYS_DIR="${AGENT_CHAT_KEYS_DIR:-$DATA_DIR/keys}"
+CONFIG_DIR="$KEYS_DIR/$HANDLE"
+
+# Backward compat: check old layouts
+# 1. Same dir but with agent-chat- prefix (old AGENT_SECRETS_DIR layout)
+if [ ! -d "$CONFIG_DIR" ] && [ -d "$KEYS_DIR/agent-chat-$HANDLE" ]; then
+  CONFIG_DIR="$KEYS_DIR/agent-chat-$HANDLE"
+fi
+# 2. Old default secrets dir
+OLD_SECRETS_DIR="${AGENT_SECRETS_DIR:-$HOME/.openclaw/secrets}"
+OLD_CONFIG_DIR="$OLD_SECRETS_DIR/agent-chat-$HANDLE"
+if [ ! -d "$CONFIG_DIR" ] && [ -d "$OLD_CONFIG_DIR" ]; then
+  echo "🔄 Found existing keys at old location ($OLD_CONFIG_DIR)"
+  echo "   Migrating to $CONFIG_DIR..."
+  mkdir -p "$KEYS_DIR"
+  cp -r "$OLD_CONFIG_DIR" "$CONFIG_DIR"
+  echo "   ✅ Migrated. Old files kept as backup."
+fi
 
 # --- Step 1: Generate keys (skip if already exist) ---
 mkdir -p "$CONFIG_DIR"
@@ -91,7 +122,7 @@ fi
 # --- Step 2: Register with relay ---
 echo ""
 echo "📡 Registering @$HANDLE with relay ($RELAY)..."
-REG_RESULT=$(AGENT_SECRETS_DIR="$SECRETS_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
+REG_RESULT=$(AGENT_CHAT_KEYS_DIR="$KEYS_DIR" AGENT_CHAT_DIR="$DATA_DIR" AGENT_CHAT_RELAY="$RELAY" AGENT_CHAT_HANDLE="$HANDLE" \
   node "$SCRIPT_DIR/send.js" register "$HANDLE" 2>&1) || true
 
 # Check registration result
@@ -137,10 +168,10 @@ CHAT_ID="${AGENT_CHAT_CHAT_ID:-}"
 THREAD_ID="${AGENT_CHAT_THREAD_ID:-}"
 
 # Auto-detect bot token and chat_id from OpenClaw config if not provided
-# Only auto-detect if using default secrets dir (custom AGENT_SECRETS_DIR = non-standard setup)
+# Skip auto-detect if AGENT_CHAT_DIR is explicitly set (custom/test setup)
 OPENCLAW_HOME="$HOME/.openclaw"
 OPENCLAW_CFG="$OPENCLAW_HOME/openclaw.json"
-if [ -f "$OPENCLAW_CFG" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
+if [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
   if [ -z "$BOT_TOKEN" ]; then
     BOT_TOKEN=$(node -e "
       try {
@@ -168,7 +199,7 @@ if [ -f "$OPENCLAW_CFG" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
 fi
 
 # Auto-detect chat_id from OpenClaw credentials (allowFrom list)
-if [ -z "$CHAT_ID" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
+if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
   for AF in "$OPENCLAW_HOME/credentials/telegram-allowFrom.json" "$OPENCLAW_HOME/credentials/telegram-default-allowFrom.json"; do
     if [ -f "$AF" ]; then
       CHAT_ID=$(node -e "
@@ -188,7 +219,7 @@ if [ -z "$CHAT_ID" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
 fi
 
 # Auto-detect chat_id from OpenClaw sessions
-if [ -z "$CHAT_ID" ] && [ "$SECRETS_DIR" = "$OPENCLAW_HOME/secrets" ]; then
+if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
   SESSIONS_FILE="$OPENCLAW_HOME/agents/main/sessions/sessions.json"
   if [ -f "$SESSIONS_FILE" ]; then
     CHAT_ID=$(node -e "
@@ -218,13 +249,13 @@ if [ -z "$BOT_TOKEN" ] && [ -t 0 ]; then
 fi
 
 if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
-  CONFIG_FILE="$SECRETS_DIR/agent-chat-telegram.json"
-  TGCONFIG="{\"botToken\":\"$BOT_TOKEN\",\"chatId\":\"$CHAT_ID\""
+  TG_DATA_FILE="$DATA_DIR/telegram.json"
+  TG_TOKEN_FILE="$KEYS_DIR/telegram-token.json"
 
-  # Reuse existing threadId from saved telegram config, or create new
-  if [ -z "$THREAD_ID" ] && [ -f "$CONFIG_FILE" ]; then
+  # Reuse existing threadId from saved config, or create new
+  if [ -z "$THREAD_ID" ] && [ -f "$TG_DATA_FILE" ]; then
     THREAD_ID=$(node -e "
-      try { const c = JSON.parse(require('fs').readFileSync('$CONFIG_FILE','utf8')); if (c.threadId) process.stdout.write(String(c.threadId)); } catch {}
+      try { const c = JSON.parse(require('fs').readFileSync('$TG_DATA_FILE','utf8')); if (c.threadId) process.stdout.write(String(c.threadId)); } catch {}
     " 2>/dev/null || true)
     if [ -n "$THREAD_ID" ]; then
       echo "🔍 Reusing existing 📬 Agent Inbox (ID: $THREAD_ID)"
@@ -245,11 +276,17 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   fi
 
   if [ -n "$THREAD_ID" ]; then
-    TGCONFIG="$TGCONFIG,\"threadId\":$THREAD_ID"
+    TG_DATA="{\"chatId\":\"$CHAT_ID\",\"threadId\":$THREAD_ID}"
+  else
+    TG_DATA="{\"chatId\":\"$CHAT_ID\"}"
   fi
-  TGCONFIG="$TGCONFIG}"
-  echo "$TGCONFIG" > "$CONFIG_FILE"
-  chmod 600 "$CONFIG_FILE"
+  mkdir -p "$DATA_DIR"
+  echo "$TG_DATA" > "$TG_DATA_FILE"
+
+  # Save bot token separately in keys dir (secret)
+  mkdir -p "$KEYS_DIR"
+  echo "{\"botToken\":\"$BOT_TOKEN\"}" > "$TG_TOKEN_FILE"
+  chmod 600 "$TG_TOKEN_FILE"
   echo "✅ Telegram config saved"
 elif [ -n "$BOT_TOKEN" ] && [ -z "$CHAT_ID" ]; then
   echo "⚠️  Bot token found but no chat_id"
@@ -354,8 +391,10 @@ if [ "$INSTALL_DAEMON" = "1" ]; then
     <dict>
         <key>AGENT_CHAT_HANDLE</key>
         <string>$HANDLE</string>
-        <key>AGENT_SECRETS_DIR</key>
-        <string>$SECRETS_DIR</string>
+        <key>AGENT_CHAT_DIR</key>
+        <string>$DATA_DIR</string>
+        <key>AGENT_CHAT_KEYS_DIR</key>
+        <string>$KEYS_DIR</string>
         <key>PATH</key>
         <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
     </dict>
@@ -388,7 +427,8 @@ Description=Agent Chat Daemon (@$HANDLE)
 [Service]
 ExecStart=$NODE_PATH $SCRIPT_DIR/ws-daemon.js $HANDLE
 Environment=AGENT_CHAT_HANDLE=$HANDLE
-Environment=AGENT_SECRETS_DIR=$SECRETS_DIR
+Environment=AGENT_CHAT_DIR=$DATA_DIR
+Environment=AGENT_CHAT_KEYS_DIR=$KEYS_DIR
 Restart=always
 RestartSec=5
 
