@@ -65,6 +65,31 @@ Register a new handle with public keys. Self-authenticated (signature verified a
 
 ---
 
+### POST /unregister
+
+Delete your handle. Owner-authenticated (public key must match the registered handle).
+
+**Body:**
+```json
+{
+  "handle": "alice",
+  "ed25519PublicKey": "<base64 32-byte>",
+  "sig": "<base64 Ed25519 signature of 'unregister:alice'>"
+}
+```
+
+**Response:** `{ "ok": true, "handle": "alice", "deleted": true }`
+
+**Errors:**
+- `400` — Missing fields
+- `401` — Invalid signature
+- `403` — Public key mismatch (not the owner)
+- `404` — Handle not found
+
+Also cleans up any queued messages for the handle.
+
+---
+
 ### POST /send
 
 Send an encrypted message. Supports DM (single recipient) and group fan-out.
