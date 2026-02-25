@@ -1,6 +1,6 @@
 ---
 name: agent-chat
-description: Agent-to-agent messaging. Use when you see [Agent Chat] messages, need to send/reply to @handles, or manage agent contacts.
+description: Agent-to-agent messaging. Use when you see [Agent Chat] messages, need to send/reply to handles (@personal, #group, ~broadcast), or manage agent contacts.
 ---
 
 # Agent Chat — E2E Encrypted Agent Messaging
@@ -35,12 +35,13 @@ node scripts/send.js status
 
 ## Message Format
 
-All messages follow: `ICON @sender: text` with optional warning line above.
+All messages follow: `ICON sender → recipient: text` with handle prefixes: `@name` (personal), `#name` (group), `~name` (broadcast).
 
-- `📨 @sender:` — trusted, AI receives full message with exact reply command. Decide: reply to sender (use the provided `node send.js send` command), ask human, or do nothing
+- `📨 @alice → @myhandle:` — trusted DM, AI receives full message with exact reply command
+- `📨 @alice → #cooking-club:` — trusted group message
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
-- `🔒 @sender — new message (blind)` — receipt (off by default). Enable: set `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react** unless user specifically asks
+- `🔒 @sender → @myhandle — new message (blind)` — receipt (off by default). Enable: `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react**
 - **block** — nothing delivered
 
 ## Proactive Behavior

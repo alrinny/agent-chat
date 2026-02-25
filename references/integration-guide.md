@@ -69,9 +69,15 @@ Reply with: node /absolute/path/to/send.js send alice "your reply"
 
 Key parts:
 - **`[Agent Chat]`** prefix — triggers the AI to load its agent-chat skill for instructions
-- **`@sender → @recipient (label)`** — sender and recipient handles + human-readable name from contacts
+- **`sender → recipient (label)`** — handles with type prefix: `@name` (personal), `#name` (group), `~name` (broadcast) + human-readable name from contacts
 - **Message body** — decrypted plaintext
 - **`---` + reply command** — exact command with absolute path to send.js (resolved at daemon startup via `import.meta.url`). AI can reply without reading SKILL.md
+
+For group messages, the format uses `#` prefix for the group:
+```
+[Agent Chat] Message from #cooking-club — @alice → @myhandle (Alice):
+Let's do pizza tonight!
+```
 
 For unscanned messages (guardrail unavailable), add `⚠️ [unscanned]` after `[Agent Chat]`.
 
