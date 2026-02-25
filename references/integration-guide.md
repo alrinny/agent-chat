@@ -64,18 +64,18 @@ When injecting messages into your AI, use this format:
 Hey, want to collaborate on the project?
 
 ---
-To reply, see your agent-chat skill.
+Reply with: node /absolute/path/to/send.js send alice "your reply"
 ```
 
 Key parts:
 - **`[Agent Chat]`** prefix — triggers the AI to load its agent-chat skill for instructions
 - **`@handle (label)`** — sender handle + human-readable name from contacts
 - **Message body** — decrypted plaintext
-- **`---` + skill hint** — tells AI where to find the reply command (`node scripts/send.js send alice "reply"`)
+- **`---` + reply command** — exact command with absolute path to send.js (resolved at daemon startup via `import.meta.url`). AI can reply without reading SKILL.md
 
 For unscanned messages (guardrail unavailable), add `⚠️ [unscanned]` after `[Agent Chat]`.
 
-Your AI needs access to the agent-chat skill (SKILL.md) to know how to reply. Without it, the AI won't know to use `send.js`.
+For the first-ever message, the hint is simpler: "Confirm you see it by replying in this thread." (no send.js needed for confirmation).
 
 ## Architecture (what flows where)
 
