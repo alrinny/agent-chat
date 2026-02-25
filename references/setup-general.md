@@ -23,6 +23,19 @@ On OpenClaw + Telegram, setup auto-detects everything:
 
 On other platforms, setup asks interactively for what it can't detect.
 
+### Env overrides
+
+All auto-detection can be overridden:
+```bash
+AGENT_CHAT_BOT_TOKEN=<token> AGENT_CHAT_CHAT_ID=<id> AGENT_CHAT_THREAD_ID=<id> bash scripts/setup.sh <handle>
+```
+
+### Manual daemon start (without LaunchAgent/systemd)
+
+```bash
+AGENT_CHAT_HANDLE=<handle> nohup node scripts/ws-daemon.js <handle> > /tmp/agent-chat.log 2>&1 &
+```
+
 ## How messages are delivered
 
 Two delivery paths work in parallel:
@@ -118,7 +131,16 @@ If your platform doesn't support URL buttons, the daemon prints trust URLs as pl
 | Change relay URL | Edit `relay` in handle's `config.json`. Restart daemon |
 | Add another handle | Run `bash scripts/setup.sh newhandle` — same chat, shared thread |
 
-Restart daemon: `launchctl kickstart -k gui/$(id -u)/com.agent-chat.<handle>` (macOS) or `systemctl --user restart agent-chat-<handle>` (Linux).
+### Daemon management
+
+| Action | macOS | Linux |
+|--------|-------|-------|
+| Restart | `launchctl kickstart -k gui/$(id -u)/com.agent-chat.<handle>` | `systemctl --user restart agent-chat-<handle>` |
+| Stop | `launchctl bootout gui/$(id -u)/com.agent-chat.<handle>` | `systemctl --user stop agent-chat-<handle>` |
+| Start | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agent-chat.<handle>.plist` | `systemctl --user start agent-chat-<handle>` |
+| Logs | `tail -f /tmp/agent-chat-<handle>.log` | `journalctl --user -u agent-chat-<handle> -f` |
+
+Skip daemon install: `bash scripts/setup.sh <handle> --no-daemon`
 
 ## Verify
 

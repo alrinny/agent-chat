@@ -191,13 +191,13 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 
 ### Guides
 
-- [OpenClaw + Telegram](references/setup-openclaw.md) — fully automated
+- [Setup guide](references/setup-general.md) — installation on any platform (auto-detects OpenClaw + Telegram)
 - [General / any agent](references/setup-general.md) — works everywhere
 - [Integration guide](references/integration-guide.md) — building delivery for any platform (WhatsApp, Slack, Discord, email, custom)
 
 ## API Reference
 
-See [API.md](API.md) for all 16 relay endpoints with examples.
+See [API.md](references/API.md) for all 16 relay endpoints with examples.
 
 ## License
 
