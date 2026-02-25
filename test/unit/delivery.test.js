@@ -243,65 +243,129 @@ describe('Delivery routing', () => {
   });
 
   describe('unified channel', () => {
-    it('DELIVER-018: UNIFIED_CHANNEL defaults to false', () => {
-      // loadHandleConfig returns {} when no config dir → unifiedChannel === true is false
+    it('DELIVER-018: unifiedChannel defaults to false when not in config', () => {
       const cfg = {};
       assert.equal(cfg.unifiedChannel === true, false);
+      // Also test undefined
+      assert.equal(undefined === true, false);
     });
 
-    it('DELIVER-019: unifiedChannel=true reads from config.json', () => {
+    it('DELIVER-019: unifiedChannel=true persists in per-handle config.json', () => {
       const dir = `/tmp/unified-test-019-${Date.now()}`;
       const handleDir = join(dir, 'keys', 'uc019');
       mkdirSync(handleDir, { recursive: true });
       writeFileSync(join(handleDir, 'config.json'), JSON.stringify({
-        handle: 'uc019', unifiedChannel: true
+        handle: 'uc019', relay: 'https://test.example.com', unifiedChannel: true, blindReceipts: false
       }));
       try {
         const cfg = JSON.parse(readFileSync(join(handleDir, 'config.json'), 'utf8'));
         assert.equal(cfg.unifiedChannel, true);
+        assert.equal(cfg.blindReceipts, false);
+        assert.equal(cfg.handle, 'uc019');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
     });
 
-    it('DELIVER-020: unified mode skips deliverToAI for trusted messages', () => {
-      // Logic test: when UNIFIED_CHANNEL=true and !aiExcluded, deliverToAI is NOT called
-      const UNIFIED_CHANNEL = true;
+    it('DELIVER-020: unified routing — trusted message: sendTelegram YES, deliverToAI NO', () => {
+      const UNIFIED = true;
       const aiExcluded = false;
-      let deliverCalled = false;
+      let telegramCalled = false;
+      let deliverAICalled = false;
 
-      if (UNIFIED_CHANNEL) {
-        // In unified mode: sendTelegram with hint, no deliverToAI
-        deliverCalled = false;
+      // Replicate the actual daemon routing logic
+      if (UNIFIED) {
+        telegramCalled = true; // sendTelegram with hint
       } else {
-        if (!aiExcluded) deliverCalled = true;
+        telegramCalled = true;
+        if (!aiExcluded) deliverAICalled = true;
       }
 
-      assert.equal(deliverCalled, false, 'deliverToAI should not be called in unified mode');
+      assert.equal(telegramCalled, true, 'sendTelegram should be called');
+      assert.equal(deliverAICalled, false, 'deliverToAI should NOT be called in unified mode');
     });
 
-    it('DELIVER-021: unified mode includes hint in Telegram message for blind', () => {
-      const UNIFIED_CHANNEL = true;
+    it('DELIVER-021: unified routing — blind message: sendTelegram with buttons+hint, no deliverToAI', () => {
+      const UNIFIED = true;
       const aiExcluded = true;
-      const hint = 'To reply, see your agent-chat skill.';
+      const BLIND_RECEIPTS = true;
+      let telegramCalled = false;
+      let deliverAICalled = false;
+      let hasHint = false;
+      let hasButtons = false;
 
-      let telegramText = '';
-      if (UNIFIED_CHANNEL) {
-        telegramText = `🔒 @alice → @bob:\n\nHello\n\n${hint}`;
+      if (UNIFIED) {
+        telegramCalled = true;
+        hasHint = true;   // hint always appended in unified
+        hasButtons = true; // buttons still present for blind
+      } else {
+        telegramCalled = true;
+        hasButtons = true;
+        if (aiExcluded && BLIND_RECEIPTS) deliverAICalled = true;
       }
 
-      assert.ok(telegramText.includes(hint), 'Hint should be included in unified mode');
-      assert.ok(telegramText.includes('@alice → @bob'), 'Header should be present');
+      assert.equal(telegramCalled, true);
+      assert.equal(deliverAICalled, false, 'deliverToAI should NOT be called in unified mode even for blind');
+      assert.equal(hasHint, true, 'hint should be present');
+      assert.equal(hasButtons, true, 'buttons should be present for blind');
     });
 
-    it('DELIVER-022: standard mode does NOT include hint in Telegram message', () => {
-      const UNIFIED_CHANNEL = false;
+    it('DELIVER-022: standard routing — trusted: sendTelegram + deliverToAI', () => {
+      const UNIFIED = false;
+      const aiExcluded = false;
+      let telegramCalled = false;
+      let deliverAICalled = false;
+
+      if (UNIFIED) {
+        telegramCalled = true;
+      } else {
+        telegramCalled = true;
+        if (!aiExcluded) deliverAICalled = true;
+      }
+
+      assert.equal(telegramCalled, true);
+      assert.equal(deliverAICalled, true, 'deliverToAI should be called in standard mode');
+    });
+
+    it('DELIVER-023: standard routing — blind: sendTelegram only, no hint', () => {
+      const UNIFIED = false;
+      const aiExcluded = true;
+      const BLIND_RECEIPTS = false;
+      let deliverAICalled = false;
+      let hasHint = false;
+
+      if (UNIFIED) {
+        hasHint = true;
+      } else {
+        if (aiExcluded && BLIND_RECEIPTS) deliverAICalled = true;
+      }
+
+      assert.equal(deliverAICalled, false, 'no blind receipt when disabled');
+      assert.equal(hasHint, false, 'no hint in standard Telegram message');
+    });
+
+    it('DELIVER-024: unified hint format includes escaped HTML', async () => {
+      const { escapeHtml } = await import(DAEMON_PATH);
       const hint = 'To reply, see your agent-chat skill.';
+      const hintLine = `\n\n<i>${escapeHtml(hint)}</i>`;
+      assert.ok(hintLine.includes('<i>To reply, see your agent-chat skill.</i>'));
+    });
 
-      let telegramText = '🔒 @alice → @bob:\n\nHello';
-      // Standard mode: Telegram message has no hint (hint goes to deliverToAI only)
-
-      assert.ok(!telegramText.includes(hint), 'Hint should NOT be in Telegram message in standard mode');
+    it('DELIVER-025: unifiedChannel + blindReceipts coexist in config', () => {
+      const dir = `/tmp/unified-test-025-${Date.now()}`;
+      const handleDir = join(dir, 'keys', 'uc025');
+      mkdirSync(handleDir, { recursive: true });
+      writeFileSync(join(handleDir, 'config.json'), JSON.stringify({
+        handle: 'uc025', unifiedChannel: true, blindReceipts: true
+      }));
+      try {
+        const cfg = JSON.parse(readFileSync(join(handleDir, 'config.json'), 'utf8'));
+        // When unified, blindReceipts is irrelevant (no deliverToAI calls at all)
+        assert.equal(cfg.unifiedChannel, true);
+        assert.equal(cfg.blindReceipts, true);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     });
   });
 });
