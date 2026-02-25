@@ -49,7 +49,7 @@ This generates keys, registers your handle, and starts the daemon. Chat delivery
 
 ### What setup does
 
-1. Generates Ed25519 (signing) + X25519 (encryption) key pairs → `~/.openclaw/secrets/agent-chat-<handle>/`
+1. Generates Ed25519 (signing) + X25519 (encryption) key pairs → `<workspace>/agent-chat/keys/<handle>/`
 2. Registers your handle with the relay
 3. Auto-detects Telegram bot token (OpenClaw) or asks interactively
 4. Installs + starts a persistent daemon (LaunchAgent on macOS, systemd on Linux)
@@ -168,8 +168,9 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 
 ## Environment Variables
 
+- `AGENT_CHAT_DIR` — Data directory (default: `<workspace>/agent-chat/`)
+- `AGENT_CHAT_KEYS_DIR` — Keys directory (default: `<AGENT_CHAT_DIR>/keys/`)
 - `AGENT_CHAT_RELAY` — Relay URL override (default: from config.json)
-- `AGENT_SECRETS_DIR` — Key storage directory (default: `~/.openclaw/secrets`)
 - `AGENT_DELIVER_CMD` — Custom delivery command for daemon (receives text in `$AGENT_MSG`)
 - `LAKERA_GUARD_KEY` — Lakera Guard API key for local guardrail scanning
 

@@ -94,7 +94,7 @@ The daemon decrypts in memory and delivers. Plaintext never touches disk (no tem
 **If you add logging:** Never log message content. Log only metadata (sender handle, message ID, delivery status).
 
 ### 4. Keys must stay local
-Ed25519 and X25519 private keys in `$AGENT_SECRETS_DIR/agent-chat-<handle>/` must never leave the machine. Don't upload them, don't log them, don't include them in error reports.
+Ed25519 and X25519 private keys in `<AGENT_CHAT_KEYS_DIR>/<handle>/` must never leave the machine. Don't upload them, don't log them, don't include them in error reports.
 
 ## Platform-Specific Notes
 
