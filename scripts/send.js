@@ -13,6 +13,7 @@ import {
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL, resolveKeysDir, resolveHandleDir, resolveDataDir } from '../lib/config.js';
 import { addContact, removeContact, listContacts } from '../lib/contacts.js';
+import { formatHandle, inferHandleType } from '../lib/format.js';
 
 const KEYS_DIR = resolveKeysDir();
 const DATA_DIR = resolveDataDir();
@@ -36,10 +37,10 @@ function loadTelegramEcho(handle) {
   } catch { return null; }
 }
 
-async function sendEcho(handle, to, message) {
+async function sendEcho(handle, to, message, toType = 'personal') {
   const tg = loadTelegramEcho(handle);
   if (!tg) return;
-  const text = `📤 <b>@${escapeHtml(handle)} → @${escapeHtml(to)}</b>:\n\n${escapeHtml(message)}`;
+  const text = `📤 <b>${escapeHtml(formatHandle(handle))} → ${escapeHtml(formatHandle(to, toType))}</b>:\n\n${escapeHtml(message)}`;
   const body = {
     chat_id: tg.chatId,
     text,
@@ -136,7 +137,7 @@ function printOk(result, context) {
     console.error(`Error (${context}): ${result.error}`);
     process.exit(1);
   }
-  const extra = result.handle ? ` (@${result.handle})` : result.id ? ` [${result.id}]` : result.ids ? ` [${result.ids.length} sent]` : '';
+  const extra = result.handle ? ` (${formatHandle(result.handle)})` : result.id ? ` [${result.id}]` : result.ids ? ` [${result.ids.length} sent]` : '';
   console.log(`✅ ${context}${extra}`);
   return result;
 }
@@ -189,7 +190,8 @@ switch (command) {
 
     // Get handle info (authenticated)
     const handleInfo = await relayGet(`/handle/info/${to}`, handle, keys.ed25519PrivateKey);
-    checkRelay(handleInfo, `lookup @${to}`);
+    const toType = inferHandleType(handleInfo);
+    checkRelay(handleInfo, `lookup ${formatHandle(to, toType)}`);
 
     // DM = personal handle (owner === name)
     const isDM = handleInfo.owner === handleInfo.name;
@@ -207,7 +209,7 @@ switch (command) {
         senderSig: encrypted.senderSig,
         plaintextHash: encrypted.plaintextHash
       }, handle, keys.ed25519PrivateKey);
-      printOk(result, `Sent to @${to}`);
+      printOk(result, `Sent to ${formatHandle(to)}`);
       await sendEcho(handle, to, message);
     } else {
       // Group: encrypt per reader
@@ -229,8 +231,8 @@ switch (command) {
       if (ciphertexts.length === 0) { console.error('No readers to send to'); process.exit(1); }
 
       const result = await relayPost('/send', { to, ciphertexts }, handle, keys.ed25519PrivateKey);
-      printOk(result, `Sent to #${to}`);
-      await sendEcho(handle, to, message);
+      printOk(result, `Sent to ${formatHandle(to, toType)}`);
+      await sendEcho(handle, to, message, toType);
     }
     break;
   }
@@ -238,7 +240,7 @@ switch (command) {
   case 'status': {
     const { handle, keys } = resolveHandleAndKeys();
 
-    console.log(`Handle: @${handle}`);
+    console.log(`Handle: ${formatHandle(handle)}`);
     console.log(`Ed25519: ${keys.ed25519PublicKey.slice(0, 16)}...`);
     console.log(`X25519:  ${keys.x25519PublicKey.slice(0, 16)}...`);
     console.log(`Relay:   ${RELAY}`);
@@ -299,20 +301,20 @@ switch (command) {
         const label = labelParts.join(' ');
         if (!cHandle || !label) { console.error('Usage: send.js contacts add <handle> <label>'); process.exit(1); }
         addContact(null, cHandle, label);
-        console.log(`Added @${cHandle} → "${label}"`);
+        console.log(`Added ${formatHandle(cHandle)} → "${label}"`);
         break;
       }
       case 'remove': {
         if (!subArgs[0]) { console.error('Usage: send.js contacts remove <handle>'); process.exit(1); }
         const existed = removeContact(null, subArgs[0]);
-        console.log(existed ? `Removed @${subArgs[0]}` : `@${subArgs[0]} not found`);
+        console.log(existed ? `Removed ${formatHandle(subArgs[0])}` : `${formatHandle(subArgs[0])} not found`);
         break;
       }
       case 'list': {
         const contacts = listContacts(null);
         if (contacts.length === 0) { console.log('No contacts'); break; }
         for (const c of contacts) {
-          console.log(`@${c.handle} → "${c.label}"${c.notes ? ` (${c.notes})` : ''}`);
+          console.log(`${formatHandle(c.handle)} → "${c.label}"${c.notes ? ` (${c.notes})` : ''}`);
         }
         break;
       }
@@ -336,7 +338,7 @@ switch (command) {
     });
     const data = await res.json();
     if (res.ok) {
-      console.log(`✅ Unregistered @${unreg}`);
+      console.log(`✅ Unregistered ${formatHandle(unreg)}`);
     } else {
       console.error(`❌ Unregister failed: ${data.error || res.statusText}`);
       process.exit(1);
