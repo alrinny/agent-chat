@@ -39,7 +39,9 @@ function loadHandleConfig() {
   if (!CONFIG_DIR) return {};
   try { return JSON.parse(readFileSync(join(CONFIG_DIR, 'config.json'), 'utf8')); } catch { return {}; }
 }
-const BLIND_RECEIPTS = loadHandleConfig().blindReceipts === true;
+const handleCfg = loadHandleConfig();
+const BLIND_RECEIPTS = handleCfg.blindReceipts === true;
+const UNIFIED_CHANNEL = handleCfg.unifiedChannel === true;
 
 // Load keys once at startup (deferred for testability)
 function loadKeys() {
@@ -447,40 +449,53 @@ async function handleMessage(msg, opts = {}) {
         ];
       }
 
-      // Send to Telegram (human always sees)
-      await sendTelegram(
-        `${warningLine}${header}\n\n${escapeHtml(plaintext)}`,
-        buttons
-      );
+      // Build hint for AI
+      const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
+      const isFirst = !existsSync(firstDeliveryMarker);
+      const hint = isFirst
+        ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.'
+        : 'To reply, see your agent-chat skill.';
 
-      // AI delivery
-      if (aiExcluded) {
-        const reason = isFlagged ? 'flagged' : 'blind';
-        if (BLIND_RECEIPTS) {
-          await deliverToAI(`🔒 @${msg.from} → @${handle} — new message (${reason})`);
-        } else {
-          console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
-        }
-      } else {
-        const channel = msg.channel ? `#${msg.channel} — ` : '';
-        const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
-        const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
-        const isFirst = !existsSync(firstDeliveryMarker);
+      if (UNIFIED_CHANNEL) {
+        // Unified: single channel for human + AI. Always include hint so AI knows how to respond.
+        const hintLine = `\n\n<i>${escapeHtml(hint)}</i>`;
+        await sendTelegram(
+          `${warningLine}${header}\n\n${escapeHtml(plaintext)}${hintLine}`,
+          buttons
+        );
         if (isFirst) {
           try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
         }
-        const hint = isFirst
-          ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.'
-          : 'To reply, see your agent-chat skill.';
-        const aiMessage = [
-          `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} → @${handle} (${contactLabel}):`,
-          '',
-          plaintext,
-          '',
-          '---',
-          hint,
-        ].join('\n');
-        await deliverToAI(aiMessage);
+      } else {
+        // Standard: separate human + AI channels
+        await sendTelegram(
+          `${warningLine}${header}\n\n${escapeHtml(plaintext)}`,
+          buttons
+        );
+
+        if (aiExcluded) {
+          const reason = isFlagged ? 'flagged' : 'blind';
+          if (BLIND_RECEIPTS) {
+            await deliverToAI(`🔒 @${msg.from} → @${handle} — new message (${reason})`);
+          } else {
+            console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
+          }
+        } else {
+          const channel = msg.channel ? `#${msg.channel} — ` : '';
+          const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
+          if (isFirst) {
+            try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
+          }
+          const aiMessage = [
+            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} → @${handle} (${contactLabel}):`,
+            '',
+            plaintext,
+            '',
+            '---',
+            hint,
+          ].join('\n');
+          await deliverToAI(aiMessage);
+        }
       }
 
     } catch (err) {
