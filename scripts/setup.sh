@@ -390,7 +390,9 @@ if [ -n "$CHAT_ID" ]; then
   fi
 fi
 
-# --- Step 4: Persistent daemon (default on, skip with --no-daemon or AGENT_CHAT_DAEMON=0) ---
+# --- Step 4: Persistent daemon ---
+# ALWAYS runs with daemon by default. Every handle gets its own daemon.
+# --no-daemon is for testing/CI only — not for normal use.
 INSTALL_DAEMON="${AGENT_CHAT_DAEMON:-1}"
 for arg in "$@"; do
   [ "$arg" = "--no-daemon" ] && INSTALL_DAEMON=0
