@@ -88,7 +88,7 @@ fi
 
 # --- 4. Remove transient files ---
 echo "4. Cleaning transient files..."
-for f in threads.json; do
+for f in threads.json .first-delivery-done; do
   [ -f "$WORKSPACE/$f" ] && rm -f "$WORKSPACE/$f" && echo "   Removed $f"
 done
 # dedup.json is per-handle inside keys dir

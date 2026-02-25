@@ -456,22 +456,24 @@ async function handleMessage(msg, opts = {}) {
           console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
         }
       } else {
-        // Self-loop protection: don't deliver messages from our own handle to AI
-        if (msg.from === handle) {
-          console.log(`[SKIP-SELF] Ignoring message from own handle @${handle}`);
-        } else {
-          const channel = msg.channel ? `#${msg.channel} — ` : '';
-          const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
-          const aiMessage = [
-            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
-            '',
-            plaintext,
-            '',
-            '---',
-            `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`,
-          ].join('\n');
-          await deliverToAI(aiMessage);
+        const channel = msg.channel ? `#${msg.channel} — ` : '';
+        const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
+        const hintLines = ['To reply, see your agent-chat skill.'];
+        // First ever AI delivery — ask model to reply so user sees it works
+        const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
+        if (!existsSync(firstDeliveryMarker)) {
+          hintLines.push('This is the first message — reply to confirm delivery works.');
+          try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
         }
+        const aiMessage = [
+          `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
+          '',
+          plaintext,
+          '',
+          '---',
+          ...hintLines,
+        ].join('\n');
+        await deliverToAI(aiMessage);
       }
 
     } catch (err) {
