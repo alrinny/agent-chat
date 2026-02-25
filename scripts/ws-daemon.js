@@ -14,6 +14,7 @@ import {
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL, resolveKeysDir, resolveHandleDir, resolveDataDir } from '../lib/config.js';
 import { loadContacts } from '../lib/contacts.js';
+import { formatHandle, inferHandleType } from '../lib/format.js';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -103,6 +104,31 @@ function saveDedupState() {
   } catch (err) {
     console.error('Dedup save error:', err);
   }
+}
+
+// --- Handle type cache ---
+// Cache handle types to avoid repeated relay calls
+const handleTypeCache = new Map();
+
+async function getHandleType(name) {
+  if (handleTypeCache.has(name)) return handleTypeCache.get(name);
+  try {
+    const res = await fetch(`${RELAY}/handle/info/${name}`, { headers: buildGetHeaders(name) });
+    if (res.ok) {
+      const info = await res.json();
+      const type = inferHandleType(info);
+      handleTypeCache.set(name, type);
+      return type;
+    }
+  } catch {}
+  handleTypeCache.set(name, 'personal');
+  return 'personal';
+}
+
+// Format a handle with proper prefix, using cache when available
+function fmtHandle(name, knownType) {
+  const type = knownType || handleTypeCache.get(name) || 'personal';
+  return formatHandle(name, type);
 }
 
 // --- Telegram config ---
@@ -388,8 +414,8 @@ async function handleMessage(msg, opts = {}) {
                 if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
                 return;
               }
-              console.error(`⚠️ SENDER SIGNATURE INVALID from @${msg.from}!`);
-              await sendTelegram(`❌ <b>@${escapeHtml(msg.from)}</b> <i>(bad signature)</i>:\n\n<i>Message dropped — invalid signature</i>`);
+              console.error(`⚠️ SENDER SIGNATURE INVALID from ${fmtHandle(msg.from)}!`);
+              await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(bad signature)</i>:\n\n<i>Message dropped — invalid signature</i>`);
               if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
               return;
             }
@@ -418,10 +444,13 @@ async function handleMessage(msg, opts = {}) {
       if (isFlagged) warningLine = '⚠️ <b>potential harm detected</b>\n';
       else if (isUnscanned) warningLine = '❓ <i>not checked for harm</i>\n';
 
-      // Message header
+      // Message header — use proper prefix for handle type
       const icon = aiExcluded ? '🔒' : '📨';
       const privacyNote = aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '';
-      const header = `${icon} <b>@${escapeHtml(msg.from)} → @${escapeHtml(handle)}</b>${privacyNote}:`;
+      // If message came via a group/channel, show that as the destination
+      const destName = msg.channel || handle;
+      const destType = msg.channel ? (handleTypeCache.get(msg.channel) || 'group') : 'personal';
+      const header = `${icon} <b>${escapeHtml(fmtHandle(msg.from))} → ${escapeHtml(fmtHandle(destName, destType))}</b>${privacyNote}:`;
 
       // Buttons (only when AI is excluded)
       let buttons = null;
@@ -435,16 +464,16 @@ async function handleMessage(msg, opts = {}) {
         if (!isTrusted) {
           // Blind sender → offer Trust
           const trustTokenRes = await relayPost('/trust-token', { target: msg.from });
-          actionRow.push({ text: `✅ Trust @${msg.from}`, url: trustTokenRes.url });
+          actionRow.push({ text: `✅ Trust ${fmtHandle(msg.from)}`, url: trustTokenRes.url });
         } else {
           // Trusted sender flagged → offer Untrust
           const untrustTokenRes = await relayPost('/trust-token', { target: msg.from, action: 'untrust' });
-          actionRow.push({ text: `🔓 Untrust @${msg.from}`, url: untrustTokenRes.url });
+          actionRow.push({ text: `🔓 Untrust ${fmtHandle(msg.from)}`, url: untrustTokenRes.url });
         }
-        actionRow.push({ text: `🚫 Block @${msg.from}`, url: blockTokenRes.url });
+        actionRow.push({ text: `🚫 Block ${fmtHandle(msg.from)}`, url: blockTokenRes.url });
 
         buttons = [
-          [{ text: `➡️ Forward to @${handle}`, url: forwardUrl }],
+          [{ text: `➡️ Forward to ${fmtHandle(handle)}`, url: forwardUrl }],
           actionRow
         ];
       }
@@ -476,18 +505,18 @@ async function handleMessage(msg, opts = {}) {
         if (aiExcluded) {
           const reason = isFlagged ? 'flagged' : 'blind';
           if (BLIND_RECEIPTS) {
-            await deliverToAI(`🔒 @${msg.from} → @${handle} — new message (${reason})`);
+            await deliverToAI(`🔒 ${fmtHandle(msg.from)} → ${fmtHandle(destName, destType)} — new message (${reason})`);
           } else {
-            console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
+            console.log(`[SKIP-AI] ${fmtHandle(msg.from)} — ${reason} (blindReceipts off)`);
           }
         } else {
-          const channel = msg.channel ? `#${msg.channel} — ` : '';
+          const channelPrefix = msg.channel ? `${fmtHandle(msg.channel, 'group')} — ` : '';
           const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
           if (isFirst) {
             try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
           }
           const aiMessage = [
-            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} → @${handle} (${contactLabel}):`,
+            `[Agent Chat] ${warnPrefix}Message from ${channelPrefix}${fmtHandle(msg.from)} → ${fmtHandle(destName, destType)} (${contactLabel}):`,
             '',
             plaintext,
             '',
@@ -505,7 +534,7 @@ async function handleMessage(msg, opts = {}) {
         return;
       }
       console.error('Decrypt error:', err);
-      await sendTelegram(`❌ <b>@${escapeHtml(msg.from)}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`);
+      await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`);
     }
     return;
   }
@@ -521,7 +550,7 @@ async function handleMessage(msg, opts = {}) {
         processedMessageIds.add(trustDedupKey);
         
         const levelLabel = event.level === 'trust' ? 'trusted' : event.level === 'block' ? 'blocked' : event.level;
-        await deliverToAI(`✅ @${event.target} is now ${levelLabel}`);
+        await deliverToAI(`✅ ${fmtHandle(event.target)} is now ${levelLabel}`);
         // Re-fetch inbox to process messages with updated effectiveRead
         // (redeliver updated blind→trusted in DO, but WS didn't push them)
         if (event.level === 'trust') {
@@ -545,13 +574,13 @@ async function handleMessage(msg, opts = {}) {
         await deliverToAI(`📋 Permissions changed on ${event.handle}`);
         break;
       case 'added_to_handle':
-        await deliverToAI(`📋 Added to ${event.handle} by @${event.by}`);
+        await deliverToAI(`📋 Added to ${fmtHandle(event.handle, 'group')} by ${fmtHandle(event.by)}`);
         // Auto-trust: if inviter is in contacts → auto-set selfRead=trusted for the group
         try {
           const contacts = loadContacts(null);
           if (contacts[event.by]) {
             await relayPost('/handle/self', { handle: event.handle, selfRead: 'trusted' });
-            await deliverToAI(`🤝 Auto-trusted ${event.handle} (invited by contact @${event.by})`);
+            await deliverToAI(`🤝 Auto-trusted ${fmtHandle(event.handle, 'group')} (invited by contact ${fmtHandle(event.by)})`);
           }
         } catch (err) {
           console.error('Auto-trust check failed:', err);
