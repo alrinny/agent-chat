@@ -150,7 +150,11 @@ if [ -f "$TG_TOKEN" ]; then
 fi
 if [ -f "$TG_DATA" ]; then
   HAS_CHAT=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_DATA','utf8')); console.log(c.chatId?'yes':'no')" 2>/dev/null || echo "no")
-  HAS_THREAD=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_DATA','utf8')); console.log(c.threadId?'yes':'no')" 2>/dev/null || echo "no")
+fi
+# threadId is now per-handle in config.json
+HANDLE_CFG="$KEYS_DIR/$HANDLE/config.json"
+if [ -f "$HANDLE_CFG" ]; then
+  HAS_THREAD=$(node -e "const c=JSON.parse(require('fs').readFileSync('$HANDLE_CFG','utf8')); console.log(c.threadId?'yes':'no')" 2>/dev/null || echo "no")
 fi
 # Backward compat: check old location
 if [ "$HAS_TOKEN" = "no" ] && [ -f "$OLD_TG" ]; then
