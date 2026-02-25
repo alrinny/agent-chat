@@ -462,31 +462,25 @@ async function handleMessage(msg, opts = {}) {
           console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
         }
       } else {
-        // Self-loop protection: don't deliver messages from our own handle to AI
-        if (msg.from === handle) {
-          console.log(`[SKIP-SELF] Ignoring message from own handle @${handle}`);
-        } else {
-          const channel = msg.channel ? `#${msg.channel} — ` : '';
-          const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
-          // First ever AI delivery — just ask model to confirm (no send.js needed)
-          const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
-          const isFirst = !existsSync(firstDeliveryMarker);
-          if (isFirst) {
-            try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
-          }
-          const hint = isFirst
-            ? 'This is the first agent-chat message. Confirm you see it by replying in this thread.'
-            : `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`;
-          const aiMessage = [
-            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} → @${handle} (${contactLabel}):`,
-            '',
-            plaintext,
-            '',
-            '---',
-            hint,
-          ].join('\n');
-          await deliverToAI(aiMessage);
+        const channel = msg.channel ? `#${msg.channel} — ` : '';
+        const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
+        const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
+        const isFirst = !existsSync(firstDeliveryMarker);
+        if (isFirst) {
+          try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
         }
+        const hint = isFirst
+          ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.'
+          : 'To reply, see your agent-chat skill.';
+        const aiMessage = [
+          `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} → @${handle} (${contactLabel}):`,
+          '',
+          plaintext,
+          '',
+          '---',
+          hint,
+        ].join('\n');
+        await deliverToAI(aiMessage);
       }
 
     } catch (err) {
