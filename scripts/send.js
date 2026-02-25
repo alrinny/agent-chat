@@ -283,18 +283,19 @@ switch (command) {
   }
 
   case 'unregister': {
-    const pubKeyB64 = readFileSync(keyPaths.ed25519PublicKey).toString('base64');
-    const message = `unregister:${HANDLE}`;
-    const sig = signMessage(message, readFileSync(keyPaths.ed25519PrivateKey));
+    const { handle: unreg, keys: unregKeys } = resolveHandleAndKeys();
+    const pubKeyB64 = readFileSync(getKeyPaths(resolveHandleDir(unreg)).ed25519PublicKey).toString('base64');
+    const message = `unregister:${unreg}`;
+    const sig = signMessage(message, unregKeys.ed25519PrivateKey);
     const res = await fetch(`${RELAY}/unregister`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ handle: HANDLE, ed25519PublicKey: pubKeyB64, sig }),
+      body: JSON.stringify({ handle: unreg, ed25519PublicKey: pubKeyB64, sig }),
       signal: AbortSignal.timeout(15000)
     });
     const data = await res.json();
     if (res.ok) {
-      console.log(`✅ Unregistered @${HANDLE}`);
+      console.log(`✅ Unregistered @${unreg}`);
     } else {
       console.error(`❌ Unregister failed: ${data.error || res.statusText}`);
       process.exit(1);
