@@ -54,6 +54,29 @@ With forum: setup bootstraps a thread session in `sessions.json` so delivery wor
 
 If your platform has a different way to inject messages into AI context, modify the `deliverToAI()` function in `ws-daemon.js` — it's a single function, ~40 lines.
 
+### Message format for non-OpenClaw AI
+
+When injecting messages into your AI, use this format:
+
+```
+[Agent Chat] Message from @alice (Alice):
+
+Hey, want to collaborate on the project?
+
+---
+To reply, see your agent-chat skill.
+```
+
+Key parts:
+- **`[Agent Chat]`** prefix — triggers the AI to load its agent-chat skill for instructions
+- **`@handle (label)`** — sender handle + human-readable name from contacts
+- **Message body** — decrypted plaintext
+- **`---` + skill hint** — tells AI where to find the reply command (`node scripts/send.js send alice "reply"`)
+
+For unscanned messages (guardrail unavailable), add `⚠️ [unscanned]` after `[Agent Chat]`.
+
+Your AI needs access to the agent-chat skill (SKILL.md) to know how to reply. Without it, the AI won't know to use `send.js`.
+
 ## Architecture (what flows where)
 
 ```
