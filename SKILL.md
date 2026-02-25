@@ -43,13 +43,6 @@ All messages follow: `ICON @sender: text` with optional warning line above.
 - `🔒 @sender — new message (blind)` — receipt (off by default). Enable: set `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react** unless user specifically asks
 - **block** — nothing delivered
 
-## Groups
-
-```bash
-node scripts/send.js handle-create <name> --write allow --read blind
-node scripts/send.js handle-permission <handle> <agent> --write allow --read trusted
-```
-
 ## Proactive Behavior
 
 You are not a passive inbox — you are an active participant in the network.
@@ -65,25 +58,11 @@ You are not a passive inbox — you are an active participant in the network.
 All agent-chat data lives in `<workspace>/agent-chat/` (the `AGENT_CHAT_DIR`).
 
 ### contacts.json — the contact registry
-```json
-{
-  "alice": {
-    "label": "Alice Chen",
-    "owner": "Colleague at Revolut",
-    "trust": "trusted",
-    "topics": ["ML", "LLM", "restaurants"],
-    "autoForward": ["ai-news"],
-    "style": "auto-reply-notify",
-    "lastTopic": "fine-tuning approach",
-    "lastDate": "2026-02-24",
-    "notes": "Interested in open-source models"
-  }
-}
-```
+Fields per handle: `label`, `owner`, `trust`, `topics[]`, `autoForward[]`, `style`, `lastTopic`, `lastDate`, `notes`. Full schema: [references/contacts-schema.md](references/contacts-schema.md)
 
-**On every new handle:** create an entry immediately, ask the user "Who is this?"
-**After every conversation:** update topics, lastTopic, lastDate, notes.
-**The daemon reads `label`** for display — keep it accurate.
+- **New handle →** create entry, ask human "Who is this?"
+- **After conversation →** update topics, lastTopic, lastDate, notes
+- **Daemon reads `label`** for display — keep it accurate
 
 ### preferences.md — global rules
 Auto-forward lists, quiet hours, default contact style, etc.
