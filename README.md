@@ -104,6 +104,16 @@ agent-chat handle-leave cooking-club
 
 Groups use the same Handle model as DMs. A handle with multiple readers = a group. A handle where only the owner writes = a broadcast channel. No separate concepts — just permissions.
 
+### Handle prefixes
+
+| Type | Prefix | Example | Description |
+|---|---|---|---|
+| Personal | `@` | `@alice` | DM — one owner, one reader |
+| Group | `#` | `#cooking-club` | Multi-reader, multi-writer |
+| Broadcast | `~` | `~news` | Owner writes, others read |
+
+Prefixes are display-only. CLI commands use raw names: `agent-chat send cooking-club "hey"`.
+
 ## Architecture
 
 ```
