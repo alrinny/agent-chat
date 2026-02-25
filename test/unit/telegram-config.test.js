@@ -18,7 +18,8 @@ import { tmpdir } from 'node:os';
 const BASE = join(tmpdir(), `tg-config-${Date.now()}`);
 
 // Replicate loadTelegramConfig logic exactly from ws-daemon.js
-function loadTelegramConfig(dataDir, keysDir) {
+// configDir = per-handle config dir (optional, for per-handle threadId)
+function loadTelegramConfig(dataDir, keysDir, configDir) {
   let config = {};
 
   // New layout
@@ -35,6 +36,13 @@ function loadTelegramConfig(dataDir, keysDir) {
 
   if (!config.botToken || !config.chatId) return null;
 
+  // threadId priority: per-handle config.json > env var
+  if (configDir) {
+    try {
+      const hcfg = JSON.parse(readFileSync(join(configDir, 'config.json'), 'utf8'));
+      if (hcfg.threadId) config.threadId = hcfg.threadId;
+    } catch { /* ignore */ }
+  }
   if (!config.threadId && process.env.AGENT_CHAT_THREAD_ID) {
     config.threadId = parseInt(process.env.AGENT_CHAT_THREAD_ID, 10);
   }
@@ -60,12 +68,14 @@ describe('telegram split config', () => {
   it('TG-001: loads from split files (new layout)', () => {
     const data = join(BASE, 'tg1-data');
     const keys = join(BASE, 'tg1-keys');
+    const hdir = join(keys, 'myhandle');
     mkdirSync(data, { recursive: true });
-    mkdirSync(keys, { recursive: true });
-    writeFileSync(join(data, 'telegram.json'), JSON.stringify({ chatId: '12345', threadId: 999 }));
+    mkdirSync(hdir, { recursive: true });
+    writeFileSync(join(data, 'telegram.json'), JSON.stringify({ chatId: '12345' }));
     writeFileSync(join(keys, 'telegram-token.json'), JSON.stringify({ botToken: 'fake:token' }));
+    writeFileSync(join(hdir, 'config.json'), JSON.stringify({ handle: 'myhandle', threadId: 999 }));
 
-    const cfg = loadTelegramConfig(data, keys);
+    const cfg = loadTelegramConfig(data, keys, hdir);
     assert.equal(cfg.chatId, '12345');
     assert.equal(cfg.threadId, 999);
     assert.equal(cfg.botToken, 'fake:token');
@@ -128,20 +138,22 @@ describe('telegram split config', () => {
     writeFileSync(join(keys, 'telegram-token.json'), JSON.stringify({ botToken: 'fake:token' }));
     process.env.AGENT_CHAT_THREAD_ID = '777';
 
-    const cfg = loadTelegramConfig(data, keys);
+    const cfg = loadTelegramConfig(data, keys, null);
     assert.equal(cfg.threadId, 777);
   });
 
-  it('TG-007: file threadId takes precedence over env', () => {
+  it('TG-007: per-handle threadId takes precedence over env', () => {
     const data = join(BASE, 'tg7-data');
     const keys = join(BASE, 'tg7-keys');
+    const hdir = join(keys, 'myhandle');
     mkdirSync(data, { recursive: true });
-    mkdirSync(keys, { recursive: true });
-    writeFileSync(join(data, 'telegram.json'), JSON.stringify({ chatId: '999', threadId: 555 }));
+    mkdirSync(hdir, { recursive: true });
+    writeFileSync(join(data, 'telegram.json'), JSON.stringify({ chatId: '999' }));
     writeFileSync(join(keys, 'telegram-token.json'), JSON.stringify({ botToken: 'fake:token' }));
+    writeFileSync(join(hdir, 'config.json'), JSON.stringify({ handle: 'myhandle', threadId: 555 }));
     process.env.AGENT_CHAT_THREAD_ID = '777';
 
-    const cfg = loadTelegramConfig(data, keys);
+    const cfg = loadTelegramConfig(data, keys, hdir);
     assert.equal(cfg.threadId, 555);
   });
 

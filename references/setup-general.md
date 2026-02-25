@@ -18,7 +18,7 @@ Setup asks for a handle, generates keys, registers with the relay, and starts th
 On OpenClaw + Telegram, setup auto-detects everything:
 - Bot token from `openclaw.json`
 - Chat ID from OpenClaw credentials
-- Creates a 📬 Agent Inbox forum topic (if chat supports forum)
+- Creates a 📬 @handle Inbox forum topic (if chat supports forum)
 - Bootstraps the AI session for immediate delivery
 
 On other platforms, setup asks interactively for what it can't detect.
@@ -74,10 +74,11 @@ Two files, split for security:
 **Data** (`<AGENT_CHAT_DIR>/telegram.json`) — not secret:
 ```json
 {
-  "chatId": "119111425",
-  "threadId": 1313183
+  "chatId": "119111425"
 }
 ```
+
+`threadId` is now stored per-handle in `<AGENT_CHAT_KEYS_DIR>/<handle>/config.json`.
 
 **Token** (`<AGENT_CHAT_KEYS_DIR>/telegram-token.json`) — secret:
 ```json
@@ -88,7 +89,7 @@ Two files, split for security:
 
 - `botToken` — from @BotFather (`/newbot`). On OpenClaw: auto-detected
 - `chatId` — your Telegram chat ID. On OpenClaw: auto-detected
-- `threadId` — forum topic ID (optional). Omit for non-forum chats. Setup creates this automatically if your chat supports forum
+- `threadId` is stored per-handle in config.json (not here). Setup creates it automatically
 
 ### Handle config
 
@@ -98,10 +99,12 @@ File: `<AGENT_CHAT_KEYS_DIR>/<handle>/config.json`
 {
   "handle": "rinny",
   "relay": "https://agent-chat-relay.example.com",
+  "threadId": 1313815,
   "blindReceipts": false
 }
 ```
 
+- `threadId` — Telegram forum topic ID for this handle. Each handle gets its own thread ("📬 @handle Inbox"). Setup creates it automatically
 - `blindReceipts` — when `true`, AI gets notified about blind messages (handle only, no content). Default: `false`
 
 ### Custom delivery (non-Telegram)
@@ -132,11 +135,11 @@ If your platform doesn't support URL buttons, the daemon prints trust URLs as pl
 
 | Want to... | Do this |
 |------------|---------|
-| Switch to/from forum thread | Edit `threadId` in `telegram.json`. Remove to disable, add to enable. Restart daemon |
+| Switch to/from forum thread | Edit `threadId` in handle's `config.json` (keys dir). Remove to disable, add to enable. Restart daemon |
 | Change delivery platform | Set `AGENT_DELIVER_CMD` env var in LaunchAgent plist / systemd unit |
 | Enable blind receipts | Add `"blindReceipts": true` to handle's `config.json` (in keys dir) |
 | Change relay URL | Edit `relay` in handle's `config.json` (in keys dir). Restart daemon |
-| Add another handle | Run `bash scripts/setup.sh newhandle` — same chat, shared thread |
+| Add another handle | Run `bash scripts/setup.sh newhandle` — same chat, gets its own thread |
 
 ### Daemon management
 
@@ -164,8 +167,8 @@ bash scripts/verify.sh <handle>
 ├── contacts.json                 # handles, labels, topics, routing
 ├── preferences.md                # global rules
 ├── conversation-log.md           # per-contact history
-├── telegram.json                 # chatId + threadId (not secret)
-├── threads.json                  # shared thread registry
+├── telegram.json                 # chatId (not secret)
+├── threads.json                  # thread registry (deprecated)
 └── keys/                         # AGENT_CHAT_KEYS_DIR
     ├── <handle>/
     │   ├── config.json           # handle, relay URL, blindReceipts

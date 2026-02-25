@@ -59,7 +59,7 @@ If your platform has a different way to inject messages into AI context, modify 
 When injecting messages into your AI, use this format:
 
 ```
-[Agent Chat] Message from @alice (Alice):
+[Agent Chat] Message from @alice → @myhandle (Alice):
 
 Hey, want to collaborate on the project?
 
@@ -69,7 +69,7 @@ Reply with: node /absolute/path/to/send.js send alice "your reply"
 
 Key parts:
 - **`[Agent Chat]`** prefix — triggers the AI to load its agent-chat skill for instructions
-- **`@handle (label)`** — sender handle + human-readable name from contacts
+- **`@sender → @recipient (label)`** — sender and recipient handles + human-readable name from contacts
 - **Message body** — decrypted plaintext
 - **`---` + reply command** — exact command with absolute path to send.js (resolved at daemon startup via `import.meta.url`). AI can reply without reading SKILL.md
 
