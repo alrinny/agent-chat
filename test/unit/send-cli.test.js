@@ -105,7 +105,7 @@ describe('CLI argument parsing', () => {
   it('SEND-PARSE-001: no command → exit code 1', () => {
     try {
       execSync(`node scripts/send.js`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');
@@ -117,7 +117,7 @@ describe('CLI argument parsing', () => {
   it('SEND-PARSE-002: unknown command → exit code 1', () => {
     try {
       execSync(`node scripts/send.js badcommand`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');
@@ -129,7 +129,7 @@ describe('CLI argument parsing', () => {
   it('SEND-PARSE-003: register without handle → exit code 1', () => {
     try {
       execSync(`node scripts/send.js register`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');
@@ -141,7 +141,7 @@ describe('CLI argument parsing', () => {
   it('SEND-PARSE-004: send without args → exit code 1', () => {
     try {
       execSync(`node scripts/send.js send`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');
@@ -152,7 +152,7 @@ describe('CLI argument parsing', () => {
 
   it('SEND-PARSE-005: status shows handle and relay', () => {
     const out = execSync(`node scripts/send.js status`, {
-      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
       encoding: 'utf8'
     });
     assert.ok(out.includes(`@${HANDLE}`));
@@ -162,7 +162,7 @@ describe('CLI argument parsing', () => {
   it('SEND-PARSE-006: handle-create without name → exit code 1', () => {
     try {
       execSync(`node scripts/send.js handle-create`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');
@@ -178,7 +178,7 @@ import { readFileSync } from 'node:fs';
 describe('Contacts CLI', () => {
   it('SEND-CONTACTS-001: contacts list on empty → "No contacts"', () => {
     const out = execSync(`node scripts/send.js contacts list`, {
-      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
       encoding: 'utf8'
     });
     assert.ok(out.includes('No contacts'));
@@ -186,7 +186,7 @@ describe('Contacts CLI', () => {
 
   it('SEND-CONTACTS-002: contacts add creates contact', () => {
     const out = execSync(`node scripts/send.js contacts add alice Alice Test`, {
-      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
       encoding: 'utf8'
     });
     assert.ok(out.includes('@alice'));
@@ -195,7 +195,7 @@ describe('Contacts CLI', () => {
 
   it('SEND-CONTACTS-003: contacts list shows added contact', () => {
     const out = execSync(`node scripts/send.js contacts list`, {
-      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
       encoding: 'utf8'
     });
     assert.ok(out.includes('@alice'));
@@ -204,7 +204,7 @@ describe('Contacts CLI', () => {
 
   it('SEND-CONTACTS-004: contacts remove deletes contact', () => {
     const out = execSync(`node scripts/send.js contacts remove alice`, {
-      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
       encoding: 'utf8'
     });
     assert.ok(out.includes('Removed @alice'));
@@ -212,7 +212,7 @@ describe('Contacts CLI', () => {
 
   it('SEND-CONTACTS-005: contacts remove non-existent → not found', () => {
     const out = execSync(`node scripts/send.js contacts remove nobody`, {
-      env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+      env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
       encoding: 'utf8'
     });
     assert.ok(out.includes('not found'));
@@ -221,7 +221,7 @@ describe('Contacts CLI', () => {
   it('SEND-CONTACTS-006: contacts add without label → exit 1', () => {
     try {
       execSync(`node scripts/send.js contacts add bob`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');
@@ -233,7 +233,7 @@ describe('Contacts CLI', () => {
   it('SEND-CONTACTS-007: contacts unknown subcommand → exit 1', () => {
     try {
       execSync(`node scripts/send.js contacts unknown`, {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: HANDLE },
         stdio: 'pipe'
       });
       assert.fail('Should have exited with error');

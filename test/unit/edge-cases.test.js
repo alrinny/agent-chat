@@ -131,7 +131,7 @@ describe('send.js CLI edge cases', () => {
   it('handle-join without handle → exit 1', () => {
     try {
       execSync('node scripts/send.js handle-join', {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
         stdio: 'pipe'
       });
       assert.fail('Should exit');
@@ -141,7 +141,7 @@ describe('send.js CLI edge cases', () => {
   it('handle-leave without handle → exit 1', () => {
     try {
       execSync('node scripts/send.js handle-leave', {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
         stdio: 'pipe'
       });
       assert.fail('Should exit');
@@ -151,7 +151,7 @@ describe('send.js CLI edge cases', () => {
   it('handle-permission without agent → exit 1', () => {
     try {
       execSync('node scripts/send.js handle-permission myhandle', {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
         stdio: 'pipe'
       });
       assert.fail('Should exit');
@@ -161,7 +161,7 @@ describe('send.js CLI edge cases', () => {
   it('send with only recipient (no message) → exit 1', () => {
     try {
       execSync('node scripts/send.js send bob', {
-        env: { ...process.env, AGENT_SECRETS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
+        env: { ...process.env, AGENT_CHAT_DIR: TEST_DIR, AGENT_CHAT_KEYS_DIR: TEST_DIR, AGENT_CHAT_HANDLE: 'edgetest' },
         stdio: 'pipe'
       });
       assert.fail('Should exit');

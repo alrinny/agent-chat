@@ -6,8 +6,19 @@
 set -euo pipefail
 
 HANDLE="${1:-${AGENT_CHAT_HANDLE:-}}"
-SECRETS_DIR="${AGENT_SECRETS_DIR:-$HOME/.openclaw/secrets}"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+# Resolve paths (mirrors config.js logic)
+if [ -n "${AGENT_CHAT_WORKSPACE:-}" ]; then
+  WORKSPACE="$AGENT_CHAT_WORKSPACE"
+elif [ -f "$HOME/.openclaw/openclaw.json" ]; then
+  WORKSPACE=$(node -e "try{const c=JSON.parse(require('fs').readFileSync('$HOME/.openclaw/openclaw.json','utf8'));console.log(c.workspace||'')}catch{}" 2>/dev/null || true)
+  [ -z "$WORKSPACE" ] && WORKSPACE="$HOME/.openclaw/workspace"
+else
+  WORKSPACE="$HOME/.openclaw/workspace"
+fi
+DATA_DIR="${AGENT_CHAT_DIR:-$WORKSPACE/agent-chat}"
+KEYS_DIR="${AGENT_CHAT_KEYS_DIR:-$DATA_DIR/keys}"
 PASS=0
 FAIL=0
 WARN=0
@@ -47,7 +58,14 @@ ok "Handle: $HANDLE"
 
 # --- 3. Keys ---
 echo "3. Keys"
-KEY_DIR="$SECRETS_DIR/agent-chat-$HANDLE"
+# Check new layout first, fall back to old
+if [ -d "$KEYS_DIR/$HANDLE" ]; then
+  KEY_DIR="$KEYS_DIR/$HANDLE"
+elif [ -d "$KEYS_DIR/agent-chat-$HANDLE" ]; then
+  KEY_DIR="$KEYS_DIR/agent-chat-$HANDLE"
+else
+  KEY_DIR="$KEYS_DIR/$HANDLE"
+fi
 for f in ed25519.pub ed25519.priv x25519.pub x25519.priv config.json; do
   if [ -f "$KEY_DIR/$f" ]; then
     ok "$f exists"
@@ -122,11 +140,26 @@ fi
 
 # --- 7. Telegram (optional) ---
 echo "7. Telegram (optional)"
-TG_CONFIG="$SECRETS_DIR/agent-chat-telegram.json"
-if [ -f "$TG_CONFIG" ]; then
-  HAS_TOKEN=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_CONFIG','utf8')); console.log(c.botToken?'yes':'no')" 2>/dev/null || echo "no")
-  HAS_CHAT=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_CONFIG','utf8')); console.log(c.chatId?'yes':'no')" 2>/dev/null || echo "no")
-  HAS_THREAD=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_CONFIG','utf8')); console.log(c.threadId?'yes':'no')" 2>/dev/null || echo "no")
+TG_DATA="$DATA_DIR/telegram.json"
+TG_TOKEN="$KEYS_DIR/telegram-token.json"
+OLD_TG="$HOME/.openclaw/secrets/agent-chat-telegram.json"
+
+HAS_TOKEN="no"; HAS_CHAT="no"; HAS_THREAD="no"
+if [ -f "$TG_TOKEN" ]; then
+  HAS_TOKEN=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_TOKEN','utf8')); console.log(c.botToken?'yes':'no')" 2>/dev/null || echo "no")
+fi
+if [ -f "$TG_DATA" ]; then
+  HAS_CHAT=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_DATA','utf8')); console.log(c.chatId?'yes':'no')" 2>/dev/null || echo "no")
+  HAS_THREAD=$(node -e "const c=JSON.parse(require('fs').readFileSync('$TG_DATA','utf8')); console.log(c.threadId?'yes':'no')" 2>/dev/null || echo "no")
+fi
+# Backward compat: check old location
+if [ "$HAS_TOKEN" = "no" ] && [ -f "$OLD_TG" ]; then
+  HAS_TOKEN=$(node -e "const c=JSON.parse(require('fs').readFileSync('$OLD_TG','utf8')); console.log(c.botToken?'yes':'no')" 2>/dev/null || echo "no")
+  HAS_CHAT=$(node -e "const c=JSON.parse(require('fs').readFileSync('$OLD_TG','utf8')); console.log(c.chatId?'yes':'no')" 2>/dev/null || echo "no")
+  HAS_THREAD=$(node -e "const c=JSON.parse(require('fs').readFileSync('$OLD_TG','utf8')); console.log(c.threadId?'yes':'no')" 2>/dev/null || echo "no")
+fi
+
+if [ "$HAS_TOKEN" = "yes" ] || [ "$HAS_CHAT" = "yes" ]; then
   [ "$HAS_TOKEN" = "yes" ] && ok "Bot token configured" || fail "Bot token missing"
   [ "$HAS_CHAT" = "yes" ] && ok "Chat ID configured" || fail "Chat ID missing"
   [ "$HAS_THREAD" = "yes" ] && ok "Thread ID configured (forum topic)" || warn "No thread ID (messages go to main chat)"
@@ -138,7 +171,7 @@ fi
 echo "8. Self-test"
 if [ -n "$RELAY" ]; then
   echo "  → Sending test message to @$HANDLE..."
-  OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" node "$SCRIPT_DIR/send.js" send "$HANDLE" "Test message to self" 2>&1 || echo "SEND_FAILED")
+  OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" AGENT_CHAT_DIR="$DATA_DIR" AGENT_CHAT_KEYS_DIR="$KEYS_DIR" node "$SCRIPT_DIR/send.js" send "$HANDLE" "Test message to self" 2>&1 || echo "SEND_FAILED")
   if echo "$OUTPUT" | grep -q "Sent to"; then
     ok "Test message sent (check delivery in ~5s)"
   else

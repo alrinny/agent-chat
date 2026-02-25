@@ -5,14 +5,14 @@
  * runs guardrail scans, and delivers to the AI (or human for blind messages).
  *
  * Usage: ws-daemon.js <handle>
- * Env: AGENT_CHAT_RELAY, AGENT_SECRETS_DIR, AGENT_DELIVER_CMD, LAKERA_GUARD_KEY, AGENT_CHAT_THREAD_ID
+ * Env: AGENT_CHAT_RELAY, AGENT_CHAT_DIR, AGENT_CHAT_KEYS_DIR, AGENT_DELIVER_CMD, LAKERA_GUARD_KEY
  */
 
 import {
   signMessage, verifySignature, decryptFromSender
 } from '../lib/crypto.js';
 import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
-import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL } from '../lib/config.js';
+import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL, resolveKeysDir, resolveHandleDir, resolveDataDir } from '../lib/config.js';
 import { loadContacts } from '../lib/contacts.js';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -22,11 +22,12 @@ const handle = process.argv[2] || process.env.AGENT_CHAT_HANDLE;
 
 const RELAY = process.env.AGENT_CHAT_RELAY || DEFAULT_RELAY_URL;
 const RELAY_WS = RELAY.replace('https://', 'wss://').replace('http://', 'ws://');
-const SECRETS_DIR = process.env.AGENT_SECRETS_DIR || join(process.env.HOME, '.openclaw', 'secrets');
+const DATA_DIR = resolveDataDir();
+const KEYS_DIR = resolveKeysDir();
 const DELIVER_CMD = process.env.AGENT_DELIVER_CMD;
 const LAKERA_KEY = process.env.LAKERA_GUARD_KEY;
 
-const CONFIG_DIR = handle ? join(SECRETS_DIR, `agent-chat-${handle}`) : null;
+const CONFIG_DIR = handle ? resolveHandleDir(handle) : null;
 
 // Load handle config for optional features
 function loadHandleConfig() {
@@ -100,16 +101,35 @@ function saveDedupState() {
 // --- Telegram config ---
 
 function loadTelegramConfig() {
-  const cfgFile = join(SECRETS_DIR, 'agent-chat-telegram.json');
-  if (!existsSync(cfgFile)) return null;
-  try {
-    const config = JSON.parse(readFileSync(cfgFile, 'utf8'));
-    // threadId can come from config file or env var
-    if (!config.threadId && process.env.AGENT_CHAT_THREAD_ID) {
-      config.threadId = parseInt(process.env.AGENT_CHAT_THREAD_ID, 10);
+  // New layout: telegram.json (chatId/threadId) in DATA_DIR, telegram-token.json (botToken) in KEYS_DIR
+  // Backward compat: old agent-chat-telegram.json in SECRETS_DIR has all fields
+  let config = {};
+
+  // Try new layout first
+  const dataFile = join(DATA_DIR, 'telegram.json');
+  const tokenFile = join(KEYS_DIR, 'telegram-token.json');
+  if (existsSync(dataFile)) {
+    try { config = JSON.parse(readFileSync(dataFile, 'utf8')); } catch { /* ignore */ }
+  }
+  if (existsSync(tokenFile)) {
+    try { const t = JSON.parse(readFileSync(tokenFile, 'utf8')); config.botToken = t.botToken; } catch { /* ignore */ }
+  }
+
+  // Backward compat: old single-file layout
+  if (!config.botToken) {
+    const oldFile = join(process.env.HOME, '.openclaw', 'secrets', 'agent-chat-telegram.json');
+    if (existsSync(oldFile)) {
+      try { config = { ...config, ...JSON.parse(readFileSync(oldFile, 'utf8')) }; } catch { /* ignore */ }
     }
-    return config;
-  } catch { return null; }
+  }
+
+  if (!config.botToken || !config.chatId) return null;
+
+  // threadId can come from config file or env var
+  if (!config.threadId && process.env.AGENT_CHAT_THREAD_ID) {
+    config.threadId = parseInt(process.env.AGENT_CHAT_THREAD_ID, 10);
+  }
+  return config;
 }
 
 // --- Relay communication ---
@@ -325,7 +345,7 @@ async function deliverToAI(text) {
 // --- Message handling ---
 
 async function handleMessage(msg, opts = {}) {
-  const contacts = CONFIG_DIR ? loadContacts(CONFIG_DIR) : {};
+  const contacts = loadContacts(null);
   const contactLabel = contacts[msg.from]?.label || msg.from;
 
   if (msg.type === 'message') {
@@ -496,7 +516,7 @@ async function handleMessage(msg, opts = {}) {
         await deliverToAI(`📋 Added to ${event.handle} by @${event.by}`);
         // Auto-trust: if inviter is in contacts → auto-set selfRead=trusted for the group
         try {
-          const contacts = CONFIG_DIR ? loadContacts(CONFIG_DIR) : {};
+          const contacts = loadContacts(null);
           if (contacts[event.by]) {
             await relayPost('/handle/self', { handle: event.handle, selfRead: 'trusted' });
             await deliverToAI(`🤝 Auto-trusted ${event.handle} (invited by contact @${event.by})`);
