@@ -489,3 +489,7 @@ if [ "$INSTALL_DAEMON" != "1" ]; then
   echo "Start daemon:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
   echo "   Persistent: bash $0 $HANDLE"
 fi
+
+# --- Auto-verify ---
+echo ""
+bash "$SCRIPT_DIR/verify.sh" "$HANDLE"
