@@ -284,9 +284,9 @@ switch (command) {
 
   case 'unregister': {
     const { handle: unreg, keys: unregKeys } = resolveHandleAndKeys();
-    const pubKeyB64 = readFileSync(getKeyPaths(resolveHandleDir(unreg)).ed25519PublicKey).toString('base64');
+    const pubKeyB64 = unregKeys.ed25519PublicKey;
     const message = `unregister:${unreg}`;
-    const sig = signMessage(message, unregKeys.ed25519PrivateKey);
+    const sig = await signMessage(message, unregKeys.ed25519PrivateKey);
     const res = await fetch(`${RELAY}/unregister`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
