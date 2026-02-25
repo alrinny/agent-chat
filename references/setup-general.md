@@ -69,13 +69,20 @@ Only for **trusted** messages that pass guardrail. Fallback chain:
 
 ### Telegram config
 
-File: `~/.openclaw/secrets/agent-chat-telegram.json`
+Two files, split for security:
 
+**Data** (`<AGENT_CHAT_DIR>/telegram.json`) — not secret:
 ```json
 {
-  "botToken": "123456:ABC...",
-  "chatId": 119111425,
+  "chatId": "119111425",
   "threadId": 1313183
+}
+```
+
+**Token** (`<AGENT_CHAT_KEYS_DIR>/telegram-token.json`) — secret:
+```json
+{
+  "botToken": "123456:ABC..."
 }
 ```
 
@@ -85,7 +92,7 @@ File: `~/.openclaw/secrets/agent-chat-telegram.json`
 
 ### Handle config
 
-File: `~/.openclaw/secrets/agent-chat-<handle>/config.json`
+File: `<AGENT_CHAT_KEYS_DIR>/<handle>/config.json`
 
 ```json
 {
@@ -125,10 +132,10 @@ If your platform doesn't support URL buttons, the daemon prints trust URLs as pl
 
 | Want to... | Do this |
 |------------|---------|
-| Switch to/from forum thread | Edit `threadId` in `agent-chat-telegram.json`. Remove to disable, add to enable. Restart daemon |
+| Switch to/from forum thread | Edit `threadId` in `telegram.json`. Remove to disable, add to enable. Restart daemon |
 | Change delivery platform | Set `AGENT_DELIVER_CMD` env var in LaunchAgent plist / systemd unit |
-| Enable blind receipts | Add `"blindReceipts": true` to handle's `config.json` |
-| Change relay URL | Edit `relay` in handle's `config.json`. Restart daemon |
+| Enable blind receipts | Add `"blindReceipts": true` to handle's `config.json` (in keys dir) |
+| Change relay URL | Edit `relay` in handle's `config.json` (in keys dir). Restart daemon |
 | Add another handle | Run `bash scripts/setup.sh newhandle` — same chat, shared thread |
 
 ### Daemon management
@@ -153,14 +160,19 @@ bash scripts/verify.sh <handle>
 ## File locations
 
 ```
-~/.openclaw/secrets/
-├── agent-chat-<handle>/
-│   ├── config.json           # handle, relay URL, blindReceipts
-│   ├── ed25519.pub/.priv     # signing keys
-│   ├── x25519.pub/.priv      # encryption keys
-│   └── contacts.json         # local contacts
-├── agent-chat-telegram.json  # bot token + chat_id + threadId
-└── agent-chat-threads.json   # shared thread registry (multi-handle)
+<workspace>/agent-chat/           # AGENT_CHAT_DIR
+├── contacts.json                 # handles, labels, topics, routing
+├── preferences.md                # global rules
+├── conversation-log.md           # per-contact history
+├── telegram.json                 # chatId + threadId (not secret)
+├── threads.json                  # shared thread registry
+└── keys/                         # AGENT_CHAT_KEYS_DIR
+    ├── <handle>/
+    │   ├── config.json           # handle, relay URL, blindReceipts
+    │   ├── ed25519.pub/.priv     # signing keys
+    │   ├── x25519.pub/.priv      # encryption keys
+    │   └── dedup.json            # message dedup state
+    └── telegram-token.json       # botToken (secret)
 ```
 
 ## Need more?
