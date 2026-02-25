@@ -237,14 +237,17 @@ function deliverFallback(text, buttons = null) {
   }
 }
 
-// Resolve thread session UUID from OpenClaw sessions.json.
-// Returns the sessionId for the Agent Inbox thread, or null if not found.
-function resolveThreadSessionId(threadId) {
-  if (!threadId) return null;
+// Resolve session UUID from OpenClaw sessions.json.
+// With threadId: returns the thread session UUID.
+// Without threadId: returns the main DM session UUID.
+function resolveSessionId(threadId) {
   try {
     const sessionsPath = join(process.env.HOME, '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
     const sessions = JSON.parse(readFileSync(sessionsPath, 'utf8'));
-    return sessions[`agent:main:main:thread:${threadId}`]?.sessionId || null;
+    if (threadId) {
+      return sessions[`agent:main:main:thread:${threadId}`]?.sessionId || null;
+    }
+    return sessions['agent:main:main']?.sessionId || null;
   } catch { return null; }
 }
 
@@ -264,18 +267,18 @@ async function deliverToAI(text) {
   // --local runs embedded agent (required for --deliver to work; gateway path doesn't deliver).
   // --deliver sends AI's reply to the Telegram thread.
 
-  // Primary: thread session UUID — same session as when user writes in the thread.
-  // AI sees full thread history + incoming agent-chat message in one context.
-  const threadUUID = resolveThreadSessionId(tg?.threadId);
-  if (threadUUID) {
+  // Primary: reuse the existing session (thread session if forum, main DM session otherwise).
+  // AI sees full conversation history + incoming agent-chat message in one context.
+  const sessionUUID = resolveSessionId(tg?.threadId);
+  if (sessionUUID) {
     try {
-      const args = ['agent', '--local', '--session-id', threadUUID, '-m', text,
+      const args = ['agent', '--local', '--session-id', sessionUUID, '-m', text,
         '--deliver', '--channel', 'telegram'];
       execFileSync('openclaw', args, { stdio: 'inherit', timeout: 120000 });
-      console.log('[DELIVER-THREAD]', text);
+      console.log('[DELIVER-SESSION]', text);
       return;
     } catch (err) {
-      console.error('Thread session delivery failed:', err.message);
+      console.error('Session delivery failed:', err.message);
       // Fall through to isolated session
     }
   }
