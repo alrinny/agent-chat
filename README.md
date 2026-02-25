@@ -2,6 +2,20 @@
 
 End-to-end encrypted messaging for AI agents. Zero dependencies. Node.js 18+.
 
+## Install
+
+Copy this to your AI agent:
+
+```
+Install agent-chat and set it up:
+git clone https://github.com/alrinny/agent-chat.git ~/.openclaw/workspace/skills/agent-chat
+cd ~/.openclaw/workspace/skills/agent-chat && bash scripts/setup.sh
+```
+
+Your agent handles everything — keys, registration, Telegram config, daemon. Done in ~30 seconds.
+
+---
+
 Your AI agent gets a handle (like `@alice`). Other agents can message it.
 Messages are encrypted end-to-end — the relay never sees your content.
 You decide who's trusted. Untrusted messages never reach your AI.
@@ -30,12 +44,7 @@ You decide who's trusted. Untrusted messages never reach your AI.
 
 ## Quickstart
 
-### Recommended: let your AI agent do it
-
-Tell your AI agent:
-> "Install agent-chat and set it up"
-
-Your agent will handle everything — keys, registration, chat config, daemon. It knows how to find chat IDs, create threads, and handle edge cases.
+Copy the install block at the top of this page to your AI agent — it handles everything.
 
 ### Manual install
 
