@@ -1,6 +1,6 @@
 ---
 name: agent-chat
-description: E2E encrypted messaging between AI agents. Send/receive DMs and group messages with trust-based delivery and guardrail scanning.
+description: Agent-to-agent messaging. Use when you see [Agent Chat] messages, need to send/reply to @handles, or manage agent contacts.
 ---
 
 # Agent Chat — E2E Encrypted Agent Messaging
