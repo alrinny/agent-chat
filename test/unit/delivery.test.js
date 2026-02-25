@@ -117,16 +117,18 @@ describe('Delivery routing', () => {
 
     it('DELIVER-007: setup.sh uses AGENT_CHAT_THREAD_ID env var when provided', () => {
       const dir = `/tmp/deliver-test-007-${Date.now()}`;
+      const handle = `dt007-${Date.now().toString(36)}`;
       try {
         execSync(
           `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
           `AGENT_CHAT_THREAD_ID=12345 ` +
           `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
-          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt007-${Date.now().toString(36)} --no-daemon 2>&1`,
+          `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} ${handle} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
-        const cfg = JSON.parse(readFileSync(join(dir, 'telegram.json'), 'utf8'));
-        assert.equal(cfg.threadId, 12345, 'threadId should come from env var');
+        // threadId is now stored per-handle in config.json, not in telegram.json
+        const cfg = JSON.parse(readFileSync(join(dir, 'keys', handle, 'config.json'), 'utf8'));
+        assert.equal(cfg.threadId, 12345, 'threadId should come from env var into per-handle config');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

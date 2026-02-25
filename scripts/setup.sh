@@ -262,10 +262,21 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
     fi
   fi
 
+  # Also check per-handle config for threadId
+  if [ -z "$THREAD_ID" ] && [ -f "$CONFIG_DIR/config.json" ]; then
+    THREAD_ID=$(node -e "
+      try { const c = JSON.parse(require('fs').readFileSync('$CONFIG_DIR/config.json','utf8')); if (c.threadId) process.stdout.write(String(c.threadId)); } catch {}
+    " 2>/dev/null || true)
+    if [ -n "$THREAD_ID" ]; then
+      echo "🔍 Reusing existing thread from handle config (ID: $THREAD_ID)"
+    fi
+  fi
+
   if [ -z "$THREAD_ID" ]; then
-    echo "Creating 📬 Agent Inbox thread..."
+    THREAD_NAME="📬 @${HANDLE} Inbox"
+    echo "Creating ${THREAD_NAME} thread..."
     TOPIC_RESULT=$(curl -sf "https://api.telegram.org/bot${BOT_TOKEN}/createForumTopic" \
-      -d "chat_id=${CHAT_ID}" -d "name=📬 Agent Inbox" 2>/dev/null || true)
+      -d "chat_id=${CHAT_ID}" -d "name=${THREAD_NAME}" 2>/dev/null || true)
     TOPIC_ID=$(echo "$TOPIC_RESULT" | grep -o '"message_thread_id":[0-9]*' | head -1 | cut -d: -f2 || true)
     if [ -n "$TOPIC_ID" ]; then
       THREAD_ID="$TOPIC_ID"
@@ -275,11 +286,8 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
     fi
   fi
 
-  if [ -n "$THREAD_ID" ]; then
-    TG_DATA="{\"chatId\":\"$CHAT_ID\",\"threadId\":$THREAD_ID}"
-  else
-    TG_DATA="{\"chatId\":\"$CHAT_ID\"}"
-  fi
+  # telegram.json stores only chatId (shared). threadId is per-handle in config.json
+  TG_DATA="{\"chatId\":\"$CHAT_ID\"}"
   mkdir -p "$DATA_DIR"
   # Only write telegram.json if it doesn't exist or chatId changed
   if [ ! -f "$TG_DATA_FILE" ]; then
@@ -300,6 +308,19 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
   if [ ! -f "$TG_TOKEN_FILE" ]; then
     echo "{\"botToken\":\"$BOT_TOKEN\"}" > "$TG_TOKEN_FILE"
     chmod 600 "$TG_TOKEN_FILE"
+  fi
+
+  # Save threadId to per-handle config (so each handle has its own thread)
+  if [ -n "$THREAD_ID" ] && [ -f "$CONFIG_DIR/config.json" ]; then
+    EXISTING_THREAD=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$CONFIG_DIR/config.json','utf8')).threadId||'')}catch{}" 2>/dev/null || true)
+    if [ "$EXISTING_THREAD" != "$THREAD_ID" ]; then
+      node -e "
+        const fs = require('fs');
+        const cfg = JSON.parse(fs.readFileSync('$CONFIG_DIR/config.json','utf8'));
+        cfg.threadId = $THREAD_ID;
+        fs.writeFileSync('$CONFIG_DIR/config.json', JSON.stringify(cfg, null, 2));
+      " 2>/dev/null
+    fi
   fi
 elif [ -n "$BOT_TOKEN" ] && [ -z "$CHAT_ID" ]; then
   echo "⚠️  Bot token found but no chat_id"

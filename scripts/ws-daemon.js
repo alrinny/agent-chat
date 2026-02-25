@@ -130,7 +130,13 @@ function loadTelegramConfig() {
 
   if (!config.botToken || !config.chatId) return null;
 
-  // threadId can come from config file or env var
+  // threadId priority: per-handle config.json > shared telegram.json > env var
+  if (CONFIG_DIR) {
+    try {
+      const hcfg = JSON.parse(readFileSync(join(CONFIG_DIR, 'config.json'), 'utf8'));
+      if (hcfg.threadId) config.threadId = hcfg.threadId;
+    } catch { /* ignore */ }
+  }
   if (!config.threadId && process.env.AGENT_CHAT_THREAD_ID) {
     config.threadId = parseInt(process.env.AGENT_CHAT_THREAD_ID, 10);
   }
@@ -413,7 +419,7 @@ async function handleMessage(msg, opts = {}) {
       // Message header
       const icon = aiExcluded ? '🔒' : '📨';
       const privacyNote = aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '';
-      const header = `${icon} <b>@${escapeHtml(msg.from)}</b>${privacyNote}:`;
+      const header = `${icon} <b>@${escapeHtml(msg.from)} → @${escapeHtml(handle)}</b>${privacyNote}:`;
 
       // Buttons (only when AI is excluded)
       let buttons = null;
@@ -451,7 +457,7 @@ async function handleMessage(msg, opts = {}) {
       if (aiExcluded) {
         const reason = isFlagged ? 'flagged' : 'blind';
         if (BLIND_RECEIPTS) {
-          await deliverToAI(`🔒 @${msg.from} — new message (${reason})`);
+          await deliverToAI(`🔒 @${msg.from} → @${handle} — new message (${reason})`);
         } else {
           console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
         }
@@ -472,7 +478,7 @@ async function handleMessage(msg, opts = {}) {
             ? 'This is the first agent-chat message. Confirm you see it by replying in this thread.'
             : `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`;
           const aiMessage = [
-            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
+            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} → @${handle} (${contactLabel}):`,
             '',
             plaintext,
             '',
