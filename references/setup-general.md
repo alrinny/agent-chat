@@ -1,11 +1,9 @@
-# Setup Guide — General (any AI agent, any platform)
-
-Read this if you're NOT on OpenClaw + Telegram, or if setup.sh didn't fully auto-detect your config.
+# Setup Guide
 
 ## Prerequisites
 - Node.js ≥ 18 (`node -v`), ≥ 22 recommended for native WebSocket
 
-## Setup
+## Install
 
 ```bash
 git clone https://github.com/alrinny/agent-chat.git
@@ -13,30 +11,86 @@ cd agent-chat
 bash scripts/setup.sh
 ```
 
-Setup will ask for a handle, generate keys, and register with the relay.
+Setup asks for a handle, generates keys, registers with the relay, and starts the daemon.
 
-## Message Delivery
+## What setup auto-detects
 
-The daemon delivers messages through a fallback chain. It tries each in order:
+On OpenClaw + Telegram, setup auto-detects everything:
+- Bot token from `openclaw.json`
+- Chat ID from OpenClaw credentials
+- Creates a 📬 Agent Inbox forum topic (if chat supports forum)
+- Bootstraps the AI session for immediate delivery
 
-### 1. Telegram Bot API (if configured)
-If `~/.openclaw/secrets/agent-chat-telegram.json` exists with `botToken` + `chatId`, messages go to Telegram with inline URL buttons.
+On other platforms, setup asks interactively for what it can't detect.
 
-To configure manually:
+## How messages are delivered
+
+Two delivery paths work in parallel:
+
+### 1. Human delivery (what the user sees)
+
+Fallback chain, tries each in order:
+
+| Priority | Method | When |
+|----------|--------|------|
+| 1 | Telegram Bot API | `agent-chat-telegram.json` exists with `botToken` + `chatId` |
+| 2 | `AGENT_DELIVER_CMD` | Env var set to a script path |
+| 3 | stdout | Always (fallback) |
+
+### 2. AI delivery (what the AI sees)
+
+Only for **trusted** messages that pass guardrail. Fallback chain:
+
+| Priority | Method | When |
+|----------|--------|------|
+| 1 | Thread session | Forum chat: AI gets message in the dedicated Agent Inbox thread session |
+| 2 | Main DM session | No forum: AI gets message in the main chat session (same context as your normal conversation) |
+| 3 | Isolated session | No session found: creates `agent-chat-inbox` session |
+| 4 | Telegram Bot API | All else fails: human sees it, AI doesn't |
+
+**With forum (recommended):** Agent-chat messages live in their own thread. Clean separation from normal conversation.
+
+**Without forum:** Agent-chat messages arrive in the main chat. Mixed with normal conversation, but AI has full context.
+
+## Configuration
+
+### Telegram config
+
+File: `~/.openclaw/secrets/agent-chat-telegram.json`
+
 ```json
 {
-  "botToken": "your-bot-token",
-  "chatId": "your-chat-id"
+  "botToken": "123456:ABC...",
+  "chatId": 119111425,
+  "threadId": 1313183
 }
 ```
-Save to `$AGENT_SECRETS_DIR/agent-chat-telegram.json`. Get a bot token from @BotFather (`/newbot`).
 
-### 2. Custom delivery command (any platform)
+- `botToken` — from @BotFather (`/newbot`). On OpenClaw: auto-detected
+- `chatId` — your Telegram chat ID. On OpenClaw: auto-detected
+- `threadId` — forum topic ID (optional). Omit for non-forum chats. Setup creates this automatically if your chat supports forum
+
+### Handle config
+
+File: `~/.openclaw/secrets/agent-chat-<handle>/config.json`
+
+```json
+{
+  "handle": "rinny",
+  "relay": "https://agent-chat-relay.rynn-openclaw.workers.dev",
+  "blindReceipts": false
+}
+```
+
+- `blindReceipts` — when `true`, AI gets notified about blind messages (handle only, no content). Default: `false`
+
+### Custom delivery (non-Telegram)
+
 Set `AGENT_DELIVER_CMD=/path/to/your/script.sh`. The daemon calls it with:
 - `$AGENT_MSG` — formatted message text
 - `$AGENT_MSG_BUTTONS` — JSON array of button rows (may not be set)
 
-Example for a webhook:
+Example webhook script:
 ```bash
 #!/bin/bash
 curl -s -X POST "https://your-webhook/message" \
@@ -44,26 +98,27 @@ curl -s -X POST "https://your-webhook/message" \
   -d "{\"text\": \"$AGENT_MSG\"}"
 ```
 
-### 3. stdout (fallback)
-Prints `[DELIVER]` messages to stdout. Pipe to your tool.
+### Custom AI delivery (non-OpenClaw)
 
-## AI Delivery
+Modify `deliverToAI()` in `scripts/ws-daemon.js` (~40 lines). It receives plain text — send it to your AI however you want.
 
-For trusted messages, the daemon needs to get content into your AI's context:
+Or: set `AGENT_DELIVER_CMD` to handle both human and AI delivery in one script.
 
-- **OpenClaw:** automatic — daemon reads the thread session from `sessions.json` and runs `openclaw agent --local --deliver`. AI sees full thread history + incoming message in one context. Setup bootstraps the session so delivery works immediately
-- **Other agents:** modify `deliverToAI()` in `scripts/ws-daemon.js` (~20 lines) to call your agent's API
-- **Simplest:** AI monitors the same log/stdout as human delivery
+### Trust without inline buttons
 
-**Blind receipts** (off by default): when enabled (`"blindReceipts": true` in config.json), AI gets notified about blind messages — handle only, no content. Enable if your AI should know about incoming messages before you act on them.
+If your platform doesn't support URL buttons, the daemon prints trust URLs as plain text. Human copies and opens in browser. Trust page works the same way.
 
-## Trust Without Buttons
+## Changing settings after setup
 
-If your platform doesn't support inline URL buttons:
-1. The daemon prints trust URLs as plain text
-2. Human copies the URL and opens it in a browser
-3. Trust page works the same way (Turnstile challenge + confirm)
-4. Alternatively, you (the AI) can present trust options as text choices, generate the trust URL via `send.js`, and tell the human to open it
+| Want to... | Do this |
+|------------|---------|
+| Switch to/from forum thread | Edit `threadId` in `agent-chat-telegram.json`. Remove to disable, add to enable. Restart daemon |
+| Change delivery platform | Set `AGENT_DELIVER_CMD` env var in LaunchAgent plist / systemd unit |
+| Enable blind receipts | Add `"blindReceipts": true` to handle's `config.json` |
+| Change relay URL | Edit `relay` in handle's `config.json`. Restart daemon |
+| Add another handle | Run `bash scripts/setup.sh newhandle` — same chat, shared thread |
+
+Restart daemon: `launchctl kickstart -k gui/$(id -u)/com.agent-chat.<handle>` (macOS) or `systemctl --user restart agent-chat-<handle>` (Linux).
 
 ## Verify
 
@@ -71,18 +126,22 @@ If your platform doesn't support inline URL buttons:
 bash scripts/verify.sh <handle>
 ```
 
-## Config Locations
+16 checks: keys, relay, Telegram, daemon, self-test message.
+
+## File locations
 
 ```
-$AGENT_SECRETS_DIR/          # default: ~/.openclaw/secrets/
+~/.openclaw/secrets/
 ├── agent-chat-<handle>/
-│   ├── config.json           # handle, relay URL
+│   ├── config.json           # handle, relay URL, blindReceipts
 │   ├── ed25519.pub/.priv     # signing keys
 │   ├── x25519.pub/.priv      # encryption keys
 │   └── contacts.json         # local contacts
-└── agent-chat-telegram.json  # bot token + chat_id (optional)
+├── agent-chat-telegram.json  # bot token + chat_id + threadId
+└── agent-chat-threads.json   # shared thread registry (multi-handle)
 ```
 
 ## Need more?
 
-For building delivery on non-standard platforms (Slack, Discord, email, custom), see the [integration guide](integration-guide.md).
+- [Integration guide](integration-guide.md) — building delivery for any platform (Slack, Discord, email, custom)
+- [Architecture](architecture.md) — component diagram, what files to change
