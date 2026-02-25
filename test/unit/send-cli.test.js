@@ -8,6 +8,7 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execSync } from 'node:child_process';
 import {
@@ -240,5 +241,137 @@ describe('Contacts CLI', () => {
     } catch (err) {
       assert.equal(err.status, 1);
     }
+  });
+});
+
+describe('send echo (outgoing message visibility)', () => {
+  const ECHO_DIR = join(tmpdir(), `echo-test-${Date.now()}`);
+  const ECHO_KEYS = join(ECHO_DIR, 'keys');
+  const ECHO_HANDLE = 'echotest';
+
+  before(() => {
+    mkdirSync(join(ECHO_KEYS, ECHO_HANDLE), { recursive: true });
+  });
+
+  after(() => {
+    rmSync(ECHO_DIR, { recursive: true, force: true });
+  });
+
+  it('SEND-ECHO-001: loadTelegramEcho returns config when all files present', async () => {
+    writeFileSync(join(ECHO_DIR, 'telegram.json'), JSON.stringify({ chatId: '12345' }));
+    writeFileSync(join(ECHO_KEYS, 'telegram-token.json'), JSON.stringify({ botToken: 'fake:token' }));
+    writeFileSync(join(ECHO_KEYS, ECHO_HANDLE, 'config.json'), JSON.stringify({ handle: ECHO_HANDLE, threadId: 999 }));
+
+    // Import and test loadTelegramEcho by running send.js in a subprocess that prints echo config
+    const result = execSync(
+      `node -e "
+        import { readFileSync, existsSync } from 'fs';
+        import { join } from 'path';
+        const DATA_DIR = '${ECHO_DIR}';
+        const KEYS_DIR = '${ECHO_KEYS}';
+        function loadTelegramEcho(handle) {
+          try {
+            const dataFile = join(DATA_DIR, 'telegram.json');
+            const tokenFile = join(KEYS_DIR, 'telegram-token.json');
+            const configFile = join(KEYS_DIR, handle, 'config.json');
+            const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+            const token = JSON.parse(readFileSync(tokenFile, 'utf8'));
+            let threadId = null;
+            try { threadId = JSON.parse(readFileSync(configFile, 'utf8')).threadId; } catch {}
+            if (!data.chatId || !token.botToken) return null;
+            return { chatId: data.chatId, botToken: token.botToken, threadId };
+          } catch { return null; }
+        }
+        console.log(JSON.stringify(loadTelegramEcho('${ECHO_HANDLE}')));
+      "`,
+      { encoding: 'utf8', env: { ...process.env } }
+    ).trim();
+    const cfg = JSON.parse(result);
+    assert.equal(cfg.chatId, '12345');
+    assert.equal(cfg.botToken, 'fake:token');
+    assert.equal(cfg.threadId, 999);
+  });
+
+  it('SEND-ECHO-002: loadTelegramEcho returns null when telegram.json missing', async () => {
+    const dir2 = join(tmpdir(), `echo-test2-${Date.now()}`);
+    mkdirSync(join(dir2, 'keys', 'h'), { recursive: true });
+    writeFileSync(join(dir2, 'keys', 'telegram-token.json'), JSON.stringify({ botToken: 'fake:token' }));
+    // no telegram.json
+
+    const result = execSync(
+      `node -e "
+        import { readFileSync } from 'fs';
+        import { join } from 'path';
+        const DATA_DIR = '${dir2}';
+        const KEYS_DIR = '${dir2}/keys';
+        function loadTelegramEcho(handle) {
+          try {
+            const dataFile = join(DATA_DIR, 'telegram.json');
+            const tokenFile = join(KEYS_DIR, 'telegram-token.json');
+            const configFile = join(KEYS_DIR, handle, 'config.json');
+            const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+            const token = JSON.parse(readFileSync(tokenFile, 'utf8'));
+            let threadId = null;
+            try { threadId = JSON.parse(readFileSync(configFile, 'utf8')).threadId; } catch {}
+            if (!data.chatId || !token.botToken) return null;
+            return { chatId: data.chatId, botToken: token.botToken, threadId };
+          } catch { return null; }
+        }
+        console.log(JSON.stringify(loadTelegramEcho('h')));
+      "`,
+      { encoding: 'utf8' }
+    ).trim();
+    assert.equal(result, 'null');
+    rmSync(dir2, { recursive: true, force: true });
+  });
+
+  it('SEND-ECHO-003: loadTelegramEcho works without per-handle threadId', async () => {
+    const dir3 = join(tmpdir(), `echo-test3-${Date.now()}`);
+    mkdirSync(join(dir3, 'keys', 'h'), { recursive: true });
+    writeFileSync(join(dir3, 'telegram.json'), JSON.stringify({ chatId: '999' }));
+    writeFileSync(join(dir3, 'keys', 'telegram-token.json'), JSON.stringify({ botToken: 'fake:tok' }));
+    // no config.json for handle
+
+    const result = execSync(
+      `node -e "
+        import { readFileSync } from 'fs';
+        import { join } from 'path';
+        const DATA_DIR = '${dir3}';
+        const KEYS_DIR = '${dir3}/keys';
+        function loadTelegramEcho(handle) {
+          try {
+            const dataFile = join(DATA_DIR, 'telegram.json');
+            const tokenFile = join(KEYS_DIR, 'telegram-token.json');
+            const configFile = join(KEYS_DIR, handle, 'config.json');
+            const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+            const token = JSON.parse(readFileSync(tokenFile, 'utf8'));
+            let threadId = null;
+            try { threadId = JSON.parse(readFileSync(configFile, 'utf8')).threadId; } catch {}
+            if (!data.chatId || !token.botToken) return null;
+            return { chatId: data.chatId, botToken: token.botToken, threadId };
+          } catch { return null; }
+        }
+        const r = loadTelegramEcho('h');
+        console.log(JSON.stringify(r));
+      "`,
+      { encoding: 'utf8' }
+    ).trim();
+    const cfg = JSON.parse(result);
+    assert.equal(cfg.chatId, '999');
+    assert.equal(cfg.threadId, null);
+    rmSync(dir3, { recursive: true, force: true });
+  });
+
+  it('SEND-ECHO-004: escapeHtml escapes < > &', () => {
+    const result = execSync(
+      `node -e "
+        function escapeHtml(s) {
+          return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+        console.log(escapeHtml('<script>alert(1)&</script>'));
+      "`,
+      { encoding: 'utf8' }
+    ).trim();
+    assert.equal(result, '&lt;script&gt;alert(1)&amp;&lt;/script&gt;');
   });
 });

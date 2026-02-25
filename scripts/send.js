@@ -20,6 +20,45 @@ const RELAY = process.env.AGENT_CHAT_RELAY || DEFAULT_RELAY_URL;
 
 const [,, command, ...args] = process.argv;
 
+// --- Telegram echo (show outgoing messages in sender's Inbox thread) ---
+
+function loadTelegramEcho(handle) {
+  try {
+    const dataFile = join(DATA_DIR, 'telegram.json');
+    const tokenFile = join(KEYS_DIR, 'telegram-token.json');
+    const configFile = join(KEYS_DIR, handle, 'config.json');
+    const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+    const token = JSON.parse(readFileSync(tokenFile, 'utf8'));
+    let threadId = null;
+    try { threadId = JSON.parse(readFileSync(configFile, 'utf8')).threadId; } catch {}
+    if (!data.chatId || !token.botToken) return null;
+    return { chatId: data.chatId, botToken: token.botToken, threadId };
+  } catch { return null; }
+}
+
+async function sendEcho(handle, to, message) {
+  const tg = loadTelegramEcho(handle);
+  if (!tg) return;
+  const text = `📤 <b>@${escapeHtml(handle)} → @${escapeHtml(to)}</b>:\n\n${escapeHtml(message)}`;
+  const body = {
+    chat_id: tg.chatId,
+    text,
+    parse_mode: 'HTML',
+    disable_notification: true,
+  };
+  if (tg.threadId) body.message_thread_id = tg.threadId;
+  try {
+    await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+  } catch { /* silent — echo is best-effort */ }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 // --- Key helpers ---
 
 function findConfigDir(handleHint) {
@@ -169,6 +208,7 @@ switch (command) {
         plaintextHash: encrypted.plaintextHash
       }, handle, keys.ed25519PrivateKey);
       printOk(result, `Sent to @${to}`);
+      await sendEcho(handle, to, message);
     } else {
       // Group: encrypt per reader
       if (!handleInfo.readers) { console.error('No readers — you may not have write access'); process.exit(1); }
@@ -190,6 +230,7 @@ switch (command) {
 
       const result = await relayPost('/send', { to, ciphertexts }, handle, keys.ed25519PrivateKey);
       printOk(result, `Sent to #${to}`);
+      await sendEcho(handle, to, message);
     }
     break;
   }
