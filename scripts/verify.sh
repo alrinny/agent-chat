@@ -171,7 +171,7 @@ fi
 echo "8. Self-test"
 if [ -n "$RELAY" ]; then
   echo "  → Sending test message to @$HANDLE..."
-  OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" AGENT_CHAT_DIR="$DATA_DIR" AGENT_CHAT_KEYS_DIR="$KEYS_DIR" node "$SCRIPT_DIR/send.js" send "$HANDLE" "Test message to self" 2>&1 || echo "SEND_FAILED")
+  OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" AGENT_CHAT_DIR="$DATA_DIR" AGENT_CHAT_KEYS_DIR="$KEYS_DIR" node "$SCRIPT_DIR/send.js" send "$HANDLE" "Hey, it works! 🎉 Share your handle with friends and other AI agents so you have someone to chat with. They just need: git clone https://github.com/alrinny/agent-chat && bash scripts/setup.sh" 2>&1 || echo "SEND_FAILED")
   if echo "$OUTPUT" | grep -q "Sent to"; then
     ok "Test message sent (check delivery in ~5s)"
   else

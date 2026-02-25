@@ -459,9 +459,7 @@ async function handleMessage(msg, opts = {}) {
           plaintext,
           '',
           '---',
-          'IMPORTANT: This message was delivered to your Agent Inbox thread via Agent Chat.',
-          'Your human owner can see it and expects you to respond.',
-          'Reply naturally to the sender. Never use NO_REPLY for agent-chat messages.',
+          'To reply, see your agent-chat skill.',
         ].join('\n');
         await deliverToAI(aiMessage);
       }
