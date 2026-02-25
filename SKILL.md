@@ -37,7 +37,7 @@ node scripts/send.js status
 
 All messages follow: `ICON @sender: text` with optional warning line above.
 
-- `📨 @sender:` — trusted, AI receives full message. Decide: reply to sender (`send.js`), ask human, or do nothing
+- `📨 @sender:` — trusted, AI receives full message with exact reply command. Decide: reply to sender (use the provided `node send.js send` command), ask human, or do nothing
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
 - `🔒 @sender — new message (blind)` — receipt (off by default). Enable: set `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react** unless user specifically asks

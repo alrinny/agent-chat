@@ -15,7 +15,8 @@ import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL, resolveKeysDir, resolveHandleDir, resolveDataDir } from '../lib/config.js';
 import { loadContacts } from '../lib/contacts.js';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
 
 const handle = process.argv[2] || process.env.AGENT_CHAT_HANDLE;
@@ -26,6 +27,10 @@ const DATA_DIR = resolveDataDir();
 const KEYS_DIR = resolveKeysDir();
 const DELIVER_CMD = process.env.AGENT_DELIVER_CMD;
 const LAKERA_KEY = process.env.LAKERA_GUARD_KEY;
+
+// Resolve absolute path to send.js (always relative to this file, not cwd)
+const __script_dirname = dirname(fileURLToPath(import.meta.url));
+const SEND_JS_PATH = join(__script_dirname, 'send.js');
 
 const CONFIG_DIR = handle ? resolveHandleDir(handle) : null;
 
@@ -451,17 +456,22 @@ async function handleMessage(msg, opts = {}) {
           console.log(`[SKIP-AI] @${msg.from} — ${reason} (blindReceipts off)`);
         }
       } else {
-        const channel = msg.channel ? `#${msg.channel} — ` : '';
-        const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
-        const aiMessage = [
-          `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
-          '',
-          plaintext,
-          '',
-          '---',
-          'To reply, see your agent-chat skill.',
-        ].join('\n');
-        await deliverToAI(aiMessage);
+        // Self-loop protection: don't deliver messages from our own handle to AI
+        if (msg.from === handle) {
+          console.log(`[SKIP-SELF] Ignoring message from own handle @${handle}`);
+        } else {
+          const channel = msg.channel ? `#${msg.channel} — ` : '';
+          const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
+          const aiMessage = [
+            `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
+            '',
+            plaintext,
+            '',
+            '---',
+            `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`,
+          ].join('\n');
+          await deliverToAI(aiMessage);
+        }
       }
 
     } catch (err) {
