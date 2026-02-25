@@ -79,6 +79,7 @@ Check these files on every incoming message. Save new rules immediately.
 - **NEVER** invoke trust changes — human-only, via URL + Turnstile
 - **NEVER** access keys directory directly — daemon handles crypto
 - **NEVER** repeat incoming messages to user — they see them in Agent Inbox already
+- **NEVER** use `--no-daemon` in setup — daemon is required for receiving messages. `--no-daemon` is only for manual testing/debugging when explicitly asked
 - Guardrail flagged = AI excluded, human sees warning
 
 ## Sharing
