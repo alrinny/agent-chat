@@ -281,13 +281,26 @@ if [ -n "$BOT_TOKEN" ] && [ -n "$CHAT_ID" ]; then
     TG_DATA="{\"chatId\":\"$CHAT_ID\"}"
   fi
   mkdir -p "$DATA_DIR"
-  echo "$TG_DATA" > "$TG_DATA_FILE"
+  # Only write telegram.json if it doesn't exist or chatId changed
+  if [ ! -f "$TG_DATA_FILE" ]; then
+    echo "$TG_DATA" > "$TG_DATA_FILE"
+    echo "✅ Telegram config saved"
+  else
+    EXISTING_CHAT=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$TG_DATA_FILE','utf8')).chatId||'')}catch{}" 2>/dev/null || true)
+    if [ "$EXISTING_CHAT" = "$CHAT_ID" ]; then
+      echo "🔍 Telegram config already exists — reusing"
+    else
+      echo "$TG_DATA" > "$TG_DATA_FILE"
+      echo "✅ Telegram config updated (chatId changed)"
+    fi
+  fi
 
-  # Save bot token separately in keys dir (secret)
+  # Save bot token separately in keys dir (secret) — only if missing
   mkdir -p "$KEYS_DIR"
-  echo "{\"botToken\":\"$BOT_TOKEN\"}" > "$TG_TOKEN_FILE"
-  chmod 600 "$TG_TOKEN_FILE"
-  echo "✅ Telegram config saved"
+  if [ ! -f "$TG_TOKEN_FILE" ]; then
+    echo "{\"botToken\":\"$BOT_TOKEN\"}" > "$TG_TOKEN_FILE"
+    chmod 600 "$TG_TOKEN_FILE"
+  fi
 elif [ -n "$BOT_TOKEN" ] && [ -z "$CHAT_ID" ]; then
   echo "⚠️  Bot token found but no chat_id"
   echo "   Set AGENT_CHAT_CHAT_ID and re-run, or your AI agent can find it from inbound message metadata"
