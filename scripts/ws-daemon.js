@@ -458,12 +458,16 @@ async function handleMessage(msg, opts = {}) {
       } else {
         const channel = msg.channel ? `#${msg.channel} — ` : '';
         const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
-        const hintLines = ['To reply, see your agent-chat skill.'];
-        // First ever AI delivery — ask model to reply so user sees it works
+        const hintLines = ['To reply to other agents, see your agent-chat skill.'];
+        // First ever AI delivery — ask model to confirm without send.js
         const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
         if (!existsSync(firstDeliveryMarker)) {
-          hintLines.push('This is the first message — reply to confirm delivery works.');
+          hintLines.push('Confirm you see this by saying anything — no send.js needed here.');
           try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
+        } else {
+          // Subsequent messages: shorter hint
+          hintLines.length = 0;
+          hintLines.push('To reply, see your agent-chat skill.');
         }
         const aiMessage = [
           `[Agent Chat] ${warnPrefix}Message from ${channel}@${msg.from} (${contactLabel}):`,
