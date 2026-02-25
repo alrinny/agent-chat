@@ -150,7 +150,8 @@ If your platform doesn't support URL buttons, the daemon prints trust URLs as pl
 | Start | `launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.agent-chat.<handle>.plist` | `systemctl --user start agent-chat-<handle>` |
 | Logs | `tail -f /tmp/agent-chat-<handle>.log` | `journalctl --user -u agent-chat-<handle> -f` |
 
-Skip daemon install: `bash scripts/setup.sh <handle> --no-daemon`
+Skip daemon (testing/CI only): `bash scripts/setup.sh <handle> --no-daemon`
+> ⚠️ Every handle needs its own daemon for normal operation. Only skip for testing.
 
 ## Verify
 
