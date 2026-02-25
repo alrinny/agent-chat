@@ -58,16 +58,26 @@ for unit in "$HOME/.config/systemd/user"/agent-chat-*.service; do
 done
 [ "$REMOVED" -eq 0 ] && echo "   None found"
 
-# --- 3. Delete Telegram thread (if exists) ---
-echo "3. Telegram thread..."
+# --- 3. Delete Telegram threads (per-handle) ---
+echo "3. Telegram threads..."
 TG_FILE="$WORKSPACE/telegram.json"
 TG_TOKEN_FILE="$KEYS_DIR/telegram-token.json"
-if [ -f "$TG_FILE" ] && [ -f "$TG_TOKEN_FILE" ]; then
+CHAT_ID=""
+BOT_TOKEN=""
+if [ -f "$TG_FILE" ]; then
   CHAT_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TG_FILE','utf8')).chatId || '')" 2>/dev/null || true)
-  THREAD_ID=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TG_FILE','utf8')).threadId || '')" 2>/dev/null || true)
+fi
+if [ -f "$TG_TOKEN_FILE" ]; then
   BOT_TOKEN=$(node -e "console.log(JSON.parse(require('fs').readFileSync('$TG_TOKEN_FILE','utf8')).botToken || '')" 2>/dev/null || true)
-  if [ -n "$CHAT_ID" ] && [ -n "$THREAD_ID" ] && [ -n "$BOT_TOKEN" ]; then
-    # Try to close and delete the forum topic
+fi
+THREADS_DELETED=0
+if [ -n "$CHAT_ID" ] && [ -n "$BOT_TOKEN" ]; then
+  # Delete threads from per-handle config.json
+  for config in "$KEYS_DIR"/*/config.json; do
+    [ -f "$config" ] || continue
+    THREAD_ID=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$config','utf8')).threadId||'')}catch{}" 2>/dev/null || true)
+    [ -z "$THREAD_ID" ] && continue
+    HANDLE_NAME=$(node -e "try{console.log(JSON.parse(require('fs').readFileSync('$config','utf8')).handle||'')}catch{}" 2>/dev/null || true)
     curl -s -X POST "https://api.telegram.org/bot${BOT_TOKEN}/closeForumTopic" \
       -H "Content-Type: application/json" \
       -d "{\"chat_id\":\"$CHAT_ID\",\"message_thread_id\":$THREAD_ID}" >/dev/null 2>&1 || true
@@ -75,13 +85,13 @@ if [ -f "$TG_FILE" ] && [ -f "$TG_TOKEN_FILE" ]; then
       -H "Content-Type: application/json" \
       -d "{\"chat_id\":\"$CHAT_ID\",\"message_thread_id\":$THREAD_ID}" 2>/dev/null || true)
     if echo "$RESULT" | grep -q '"ok":true'; then
-      echo "   Deleted thread $THREAD_ID"
+      echo "   Deleted thread $THREAD_ID (@${HANDLE_NAME:-unknown})"
+      ((THREADS_DELETED++))
     else
       echo "   Could not delete thread $THREAD_ID (may not exist or no permission)"
     fi
-  else
-    echo "   No thread to delete"
-  fi
+  done
+  [ "$THREADS_DELETED" -eq 0 ] && echo "   No threads found"
 else
   echo "   No Telegram config found"
 fi
