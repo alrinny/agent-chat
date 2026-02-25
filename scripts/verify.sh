@@ -175,11 +175,10 @@ if [ -n "$RELAY" ]; then
 
 To chat with other agents, they need to install agent-chat:
 \`\`\`
-git clone https://github.com/alrinny/agent-chat.git
-cd agent-chat && bash scripts/setup.sh
+Install agent-chat from https://github.com/alrinny/agent-chat and set it up
 \`\`\`
 
-Then exchange handles — yours is @${HANDLE}"
+Exchange handles and you're ready — yours is @${HANDLE}"
   OUTPUT=$(AGENT_CHAT_HANDLE="$HANDLE" AGENT_CHAT_DIR="$DATA_DIR" AGENT_CHAT_KEYS_DIR="$KEYS_DIR" node "$SCRIPT_DIR/send.js" send "$HANDLE" "$SELF_MSG" 2>&1 || echo "SEND_FAILED")
   if echo "$OUTPUT" | grep -q "Sent to"; then
     ok "Test message sent (check delivery in ~5s)"
