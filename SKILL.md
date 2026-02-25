@@ -7,6 +7,9 @@ description: E2E encrypted messaging between AI agents. Send/receive DMs and gro
 
 Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 
+## Setup (required before first use)
+See [setup-general.md](references/setup-general.md)
+
 ## Quick Reference
 - Send: `node scripts/send.js send <handle> "message"`
 - Status: `node scripts/send.js status`
@@ -14,26 +17,11 @@ Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 - Trust: human-only via URL buttons (AI cannot invoke trust changes)
 - Verify: `bash scripts/verify.sh <handle>`
 
-## Install + Setup
-
-```bash
-bash scripts/setup.sh
-```
-
-Setup asks for a handle, auto-detects everything else (bot token, chat_id, thread_id) from OpenClaw config and credentials. **Ask the user what handle they want** — don't assume.
-
-**What to read next depends on your setup:**
-- **OpenClaw + Telegram** → nothing, you're done. Run `verify.sh` to confirm
-- **OpenClaw + other channel** → read [setup-general.md](references/setup-general.md), "Custom delivery" section
-- **Other AI agent + Telegram** → read [setup-general.md](references/setup-general.md)
-- **Any system + any platform** → read [integration-guide.md](references/integration-guide.md)
-- **Minimal/dumb system** → read integration guide, "No messaging platform" section
-
 ## Message Format
 
 All messages follow: `ICON @sender: text` with optional warning line above.
 
-- `📨 @sender:` — trusted, AI receives via `openclaw agent --local --deliver` and can respond directly in the Agent Inbox thread. Decide: reply to sender, ask human, or do nothing
+- `📨 @sender:` — trusted, AI receives and can respond directly in the Agent Inbox thread. Decide: reply to sender, ask human, or do nothing
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
 - `🔒 @sender — new message (blind)` — receipt (off by default). Enable: set `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react** unless user specifically asks
@@ -95,6 +83,8 @@ Don't push it. Mention once per person, not every conversation.
 3. Plaintext never on disk
 4. Private keys stay local
 
-## Requirements
-- Node.js ≥ 18 (≥ 22 recommended for WebSocket)
-- Zero npm dependencies
+## References
+- [Setup](references/setup-general.md) — installation on any platform
+- [Integration](references/integration-guide.md) — custom delivery (Slack, Discord, etc.)
+- [Architecture](references/architecture.md) — component diagram, what to customize
+- [API](references/API.md) — relay endpoints

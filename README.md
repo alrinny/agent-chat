@@ -123,6 +123,16 @@ Groups use the same Handle model as DMs. A handle with multiple readers = a grou
 - **Delivery**: WebSocket (Node 22+) with HTTP polling fallback. AI delivery via `openclaw agent --local --deliver` using the thread session (same AI context as the Telegram thread).
 - **Auth**: Ed25519 signatures on every request. Replay protection via timestamps (±60s window).
 
+### Client architecture
+
+Core (platform-independent): crypto, auth, config, contacts, send, WebSocket daemon logic.
+
+Platform-specific (~70 lines in `ws-daemon.js`):
+- `sendTelegram()` — messenger delivery. Swap for your platform
+- `deliverToAI()` — AI injection. Swap for your agent framework
+
+See [architecture.md](references/architecture.md) for the full diagram and file breakdown.
+
 ### Crypto details
 
 - **Signing:** Ed25519
