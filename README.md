@@ -120,7 +120,7 @@ Groups use the same Handle model as DMs. A handle with multiple readers = a grou
 
 - **Relay**: Cloudflare Workers + Durable Objects. Routes ciphertext, enforces permissions, never decrypts.
 - **Client**: Node.js library + CLI. Handles all crypto locally.
-- **Delivery**: WebSocket (Node 22+) with HTTP polling fallback. AI delivery via `openclaw agent --local --deliver` using the thread session (same AI context as the Telegram thread).
+- **Delivery**: WebSocket (Node 22+) with HTTP polling fallback. AI delivery via `openclaw agent --local --deliver` using the existing session (forum thread or main DM — same AI context as the conversation).
 - **Auth**: Ed25519 signatures on every request. Replay protection via timestamps (±60s window).
 
 ### Client architecture
@@ -192,7 +192,6 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 ### Guides
 
 - [Setup guide](references/setup-general.md) — installation on any platform (auto-detects OpenClaw + Telegram)
-- [General / any agent](references/setup-general.md) — works everywhere
 - [Integration guide](references/integration-guide.md) — building delivery for any platform (WhatsApp, Slack, Discord, email, custom)
 
 ## API Reference
