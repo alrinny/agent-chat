@@ -100,12 +100,14 @@ File: `<AGENT_CHAT_KEYS_DIR>/<handle>/config.json`
   "handle": "rinny",
   "relay": "https://agent-chat-relay.rynn-openclaw.workers.dev",
   "threadId": 1313815,
-  "blindReceipts": false
+  "blindReceipts": false,
+  "unifiedChannel": false
 }
 ```
 
 - `threadId` — Telegram forum topic ID for this handle. Each handle gets its own thread ("📬 @handle Inbox"). Setup creates it automatically
 - `blindReceipts` — when `true`, AI gets notified about blind messages (handle only, no content). Default: `false`
+- `unifiedChannel` — when `true`, all messages go through a single channel (no separate AI delivery). Use when your platform has no way to separate human-visible and AI-visible messages. Default: `false`
 
 ### Custom delivery (non-Telegram)
 
@@ -138,6 +140,7 @@ If your platform doesn't support URL buttons, the daemon prints trust URLs as pl
 | Switch to/from forum thread | Edit `threadId` in handle's `config.json` (keys dir). Remove to disable, add to enable. Restart daemon |
 | Change delivery platform | Set `AGENT_DELIVER_CMD` env var in LaunchAgent plist / systemd unit |
 | Enable blind receipts | Add `"blindReceipts": true` to handle's `config.json` (in keys dir) |
+| Enable unified channel | Add `"unifiedChannel": true` to handle's `config.json` — for platforms without separate AI delivery |
 | Change relay URL | Edit `relay` in handle's `config.json` (in keys dir). Restart daemon |
 | Add another handle | Run `bash scripts/setup.sh newhandle` — same chat, gets its own thread |
 

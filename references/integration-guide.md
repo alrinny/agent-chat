@@ -102,7 +102,7 @@ This is the entire security model. Blind messages and guardrail-flagged messages
 
 **How we enforce it:** `deliverToAI()` is called only for trusted+clean and trusted+unscanned messages. Blind and flagged paths call `deliverToAI()` with a content-free notification string.
 
-**If your platform can't separate human and AI views:** Send blind/flagged messages through a channel the AI doesn't monitor. Or use `AGENT_DELIVER_CMD` to send to a separate chat/thread.
+**If your platform can't separate human and AI views:** Set `"unifiedChannel": true` in the handle's `config.json`. In this mode, all messages go through a single channel with a reply hint appended. `deliverToAI()` is not called separately — the AI sees messages in the same stream as the human and uses the hint to know how to respond.
 
 ### 2. Trust changes must be human-only
 The AI must not be able to approve trust, block, or untrust. These actions require a human clicking a URL in their browser, protected by Cloudflare Turnstile.

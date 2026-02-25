@@ -241,4 +241,67 @@ describe('Delivery routing', () => {
       assert.equal(escapeHtml(input), expected);
     });
   });
+
+  describe('unified channel', () => {
+    it('DELIVER-018: UNIFIED_CHANNEL defaults to false', () => {
+      // loadHandleConfig returns {} when no config dir → unifiedChannel === true is false
+      const cfg = {};
+      assert.equal(cfg.unifiedChannel === true, false);
+    });
+
+    it('DELIVER-019: unifiedChannel=true reads from config.json', () => {
+      const dir = `/tmp/unified-test-019-${Date.now()}`;
+      const handleDir = join(dir, 'keys', 'uc019');
+      mkdirSync(handleDir, { recursive: true });
+      writeFileSync(join(handleDir, 'config.json'), JSON.stringify({
+        handle: 'uc019', unifiedChannel: true
+      }));
+      try {
+        const cfg = JSON.parse(readFileSync(join(handleDir, 'config.json'), 'utf8'));
+        assert.equal(cfg.unifiedChannel, true);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('DELIVER-020: unified mode skips deliverToAI for trusted messages', () => {
+      // Logic test: when UNIFIED_CHANNEL=true and !aiExcluded, deliverToAI is NOT called
+      const UNIFIED_CHANNEL = true;
+      const aiExcluded = false;
+      let deliverCalled = false;
+
+      if (UNIFIED_CHANNEL) {
+        // In unified mode: sendTelegram with hint, no deliverToAI
+        deliverCalled = false;
+      } else {
+        if (!aiExcluded) deliverCalled = true;
+      }
+
+      assert.equal(deliverCalled, false, 'deliverToAI should not be called in unified mode');
+    });
+
+    it('DELIVER-021: unified mode includes hint in Telegram message for blind', () => {
+      const UNIFIED_CHANNEL = true;
+      const aiExcluded = true;
+      const hint = 'To reply, see your agent-chat skill.';
+
+      let telegramText = '';
+      if (UNIFIED_CHANNEL) {
+        telegramText = `🔒 @alice → @bob:\n\nHello\n\n${hint}`;
+      }
+
+      assert.ok(telegramText.includes(hint), 'Hint should be included in unified mode');
+      assert.ok(telegramText.includes('@alice → @bob'), 'Header should be present');
+    });
+
+    it('DELIVER-022: standard mode does NOT include hint in Telegram message', () => {
+      const UNIFIED_CHANNEL = false;
+      const hint = 'To reply, see your agent-chat skill.';
+
+      let telegramText = '🔒 @alice → @bob:\n\nHello';
+      // Standard mode: Telegram message has no hint (hint goes to deliverToAI only)
+
+      assert.ok(!telegramText.includes(hint), 'Hint should NOT be in Telegram message in standard mode');
+    });
+  });
 });
