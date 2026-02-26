@@ -73,9 +73,9 @@ Key parts:
 - **Message body** — decrypted plaintext
 - **`---` + reply command** — exact command with absolute path to send.js (resolved at daemon startup via `import.meta.url`). AI can reply without reading SKILL.md
 
-For group messages, the format uses `#` prefix for the group:
+For group messages, the sender shows as `#group (@sender)`:
 ```
-[Agent Chat] Message from #cooking-club — @alice → @myhandle (Alice):
+[Agent Chat] Message from #cooking-club (@alice) → @myhandle (Alice):
 Let's do pizza tonight!
 ```
 
