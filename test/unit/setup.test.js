@@ -5,7 +5,7 @@
  * Tests: SETUP-NODE-001, SETUP-KEYS-001..004, SETUP-CONFIG-001, SETUP-PERMS-001
  */
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, rmSync, existsSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
@@ -123,7 +123,7 @@ describe('setup.sh — 409 handling', () => {
     // Use random handle to avoid 409
     const randomHandle = `test-${Date.now().toString(36)}`;
     const out = execSync(
-      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('setup complete'), `Expected "setup complete", got: ${out.slice(0, 300)}`);
@@ -163,28 +163,37 @@ describe('setup.sh — 409 handling', () => {
 });
 
 describe('setup.sh — --daemon flag', () => {
+  // Track created plists for cleanup even if test crashes
+  const createdPlists = [];
+
+  afterEach(() => {
+    for (const plistPath of createdPlists) {
+      const label = plistPath.split('/').pop().replace('.plist', '');
+      try { execSync(`launchctl bootout "gui/$(id -u)/${label}" 2>/dev/null || true`); } catch {}
+      rmSync(plistPath, { force: true });
+    }
+    createdPlists.length = 0;
+  });
+
   it('SETUP-DAEMON-001: default setup creates LaunchAgent plist on macOS', () => {
     const randomHandle = `daemon-${Date.now().toString(36)}`;
     const plistPath = `${process.env.HOME}/Library/LaunchAgents/com.agent-chat.${randomHandle}.plist`;
+    createdPlists.push(plistPath);
 
-    try {
-      // No --daemon flag needed — it's the default now
-      const out = execSync(
-        `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
-        { encoding: 'utf8' }
-      );
-      
-      assert.ok(out.includes('Daemon installed'), `Expected daemon installed msg, got: ${out.slice(0, 300)}`);
-      
-      // Plist should exist with correct node path (auto-detected, not hardcoded)
-      const plist = readFileSync(plistPath, 'utf8');
-      assert.ok(plist.includes(randomHandle), 'Plist should contain handle');
-      const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
-      assert.ok(plist.includes(nodePath), `Plist should use '${nodePath}', not a hardcoded path`);
-    } finally {
-      execSync(`launchctl unload "${plistPath}" 2>/dev/null || true`);
-      rmSync(plistPath, { force: true });
-    }
+    // No --daemon flag needed — it's the default now
+    // AGENT_CHAT_FORCE_DAEMON=1 overrides the test-handle safety guard in setup.sh
+    const out = execSync(
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_FORCE_DAEMON=1 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
+      { encoding: 'utf8' }
+    );
+    
+    assert.ok(out.includes('Daemon installed'), `Expected daemon installed msg, got: ${out.slice(0, 300)}`);
+    
+    // Plist should exist with correct node path (auto-detected, not hardcoded)
+    const plist = readFileSync(plistPath, 'utf8');
+    assert.ok(plist.includes(randomHandle), 'Plist should contain handle');
+    const nodePath = execSync('which node', { encoding: 'utf8' }).trim();
+    assert.ok(plist.includes(nodePath), `Plist should use '${nodePath}', not a hardcoded path`);
   });
 
   it('SETUP-DAEMON-002: --no-daemon skips LaunchAgent, shows manual instructions', () => {

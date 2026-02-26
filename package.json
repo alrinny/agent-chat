@@ -10,7 +10,7 @@
     "agent-chat-setup": "bin/setup.js"
   },
   "scripts": {
-    "test": "node --test test/unit/crypto.test.js test/unit/auth.test.js test/unit/config.test.js test/unit/contacts.test.js test/unit/path-resolution.test.js test/unit/telegram-config.test.js test/unit/send-cli.test.js test/unit/daemon-logic.test.js test/unit/dedup-persistence.test.js test/unit/setup.test.js test/unit/edge-cases.test.js test/unit/guardrail-integration.test.js test/unit/delivery.test.js test/unit/format.test.js test/unit/daemon-features.test.js test/unit/openclaw-discovery.test.js test/unit/group-display.test.js"
+    "test": "node --test test/unit/crypto.test.js test/unit/auth.test.js test/unit/config.test.js test/unit/contacts.test.js test/unit/path-resolution.test.js test/unit/telegram-config.test.js test/unit/send-cli.test.js test/unit/daemon-logic.test.js test/unit/dedup-persistence.test.js test/unit/setup.test.js test/unit/edge-cases.test.js test/unit/guardrail-integration.test.js test/unit/delivery.test.js test/unit/format.test.js test/unit/daemon-features.test.js test/unit/openclaw-discovery.test.js test/unit/group-display.test.js test/unit/trust-redeliver.test.js"
   },
   "engines": {
     "node": ">=18.0.0"
