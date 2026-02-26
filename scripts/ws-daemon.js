@@ -553,11 +553,11 @@ async function handleMessage(msg, opts = {}) {
         : (aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '');
       // Derive group channel from relay fields: group has to !== handle, DM has to === handle
       const channel = (msg.to && msg.to !== handle) ? msg.to : null;
-      // Incoming group: #group (@sender) → @me. DM: @sender → @me
+      // Group: @sender → #channel. DM: @sender → @me
       const fromPart = channel
-        ? `${escapeHtml(fmtHandle(channel, handleTypeCache.get(channel) || 'group'))} (${escapeHtml(fmtHandle(msg.from))})`
-        : escapeHtml(fmtHandle(msg.from));
-      const header = `${icon} <b>${fromPart} → ${escapeHtml(fmtHandle(handle))}</b>${privacyNote}:`;
+        ? `${escapeHtml(fmtHandle(msg.from))} → ${escapeHtml(fmtHandle(channel, handleTypeCache.get(channel) || 'group'))}`
+        : `${escapeHtml(fmtHandle(msg.from))} → ${escapeHtml(fmtHandle(handle))}`;
+      const header = `${icon} <b>${fromPart}</b>${privacyNote}:`;
 
       // Buttons (only when AI is excluded)
       let buttons = null;
@@ -614,23 +614,26 @@ async function handleMessage(msg, opts = {}) {
         if (aiExcluded) {
           const reason = isFlagged ? 'flagged' : 'blind';
           const aiFromPart = channel
-            ? `${fmtHandle(channel, handleTypeCache.get(channel) || 'group')} (${fmtHandle(msg.from)})`
+            ? `${fmtHandle(msg.from)} → ${fmtHandle(channel, handleTypeCache.get(channel) || 'group')}`
             : fmtHandle(msg.from);
           if (BLIND_RECEIPTS) {
-            await deliverToAI(`🔒 ${aiFromPart} → ${fmtHandle(handle)} — new message (${reason})`);
+            await deliverToAI(`🔒 ${aiFromPart}${channel ? '' : ` → ${fmtHandle(handle)}`} — new message (${reason})`);
           } else {
             console.log(`[SKIP-AI] ${aiFromPart} — ${reason} (blindReceipts off)`);
           }
         } else {
           const aiFromPart = channel
-            ? `${fmtHandle(channel, handleTypeCache.get(channel) || 'group')} (${fmtHandle(msg.from)})`
+            ? `${fmtHandle(msg.from)} → ${fmtHandle(channel, handleTypeCache.get(channel) || 'group')}`
             : fmtHandle(msg.from);
           const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
           if (isFirst) {
             try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
           }
+          const aiHeader = channel
+            ? `[Agent Chat] ${warnPrefix}${aiFromPart}:`
+            : `[Agent Chat] ${warnPrefix}Message from ${aiFromPart} → ${fmtHandle(handle)} (${contactLabel}):`;
           const aiMessage = [
-            `[Agent Chat] ${warnPrefix}Message from ${aiFromPart} → ${fmtHandle(handle)} (${contactLabel}):`,
+            aiHeader,
             '',
             plaintext,
             '',
