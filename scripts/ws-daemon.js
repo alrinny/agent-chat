@@ -134,6 +134,37 @@ const DEDUP_PRUNE_TO = 5000;
 
 const processedMessageIds = new Set();  // "msgId:effectiveRead" → processed
 
+// --- Exactly-once: lastAckedId cursor ---
+// Tracks the last successfully processed message ID. On reconnect,
+// sent as ?after= to relay so server only returns newer messages.
+// This prevents duplicates even when dedup.json is lost (crash, fresh clone).
+
+function getLastAckedIdPath() {
+  return CONFIG_DIR ? join(CONFIG_DIR, 'lastAckedId') : null;
+}
+
+function loadLastAckedId() {
+  const p = getLastAckedIdPath();
+  if (!p) return null;
+  try {
+    if (existsSync(p)) {
+      const id = readFileSync(p, 'utf8').trim();
+      return id || null;
+    }
+  } catch { /* missing or corrupt — start fresh */ }
+  return null;
+}
+
+function saveLastAckedId(id) {
+  const p = getLastAckedIdPath();
+  if (!p || !id) return;
+  try { writeFileSync(p, id, 'utf8'); } catch (err) {
+    console.error('lastAckedId save error:', err);
+  }
+}
+
+let lastAckedId = null;
+
 function getDedupPath() {
   return CONFIG_DIR ? join(CONFIG_DIR, 'dedup.json') : null;
 }
@@ -648,11 +679,15 @@ async function handleMessage(msg, opts = {}) {
       if (opts.queued) {
         // Silently skip old messages that can't be decrypted (previous keys)
         if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
+        // Still update cursor — we've "processed" it (skip counts as processed)
+        if (msg.id) { lastAckedId = msg.id; saveLastAckedId(msg.id); }
         return;
       }
       console.error('Decrypt error:', err);
       await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`);
     }
+    // Update cursor after processing (success or handled error)
+    if (msg.id) { lastAckedId = msg.id; saveLastAckedId(msg.id); }
     return;
   }
 
@@ -737,8 +772,13 @@ async function connect() {
     reconnectDelay = 1000;
 
     // Fetch messages accumulated while disconnected (one-time, not polling)
+    // Use lastAckedId cursor to avoid re-processing already-seen messages
     try {
-      const { messages } = await relayGet(`/inbox/${handle}`);
+      const inboxPath = lastAckedId
+        ? `/inbox/${handle}?after=${encodeURIComponent(lastAckedId)}`
+        : `/inbox/${handle}`;
+      verbose(`Fetching inbox: ${inboxPath}`);
+      const { messages } = await relayGet(inboxPath);
       if (messages?.length) {
         for (const msg of messages) {
           await handleMessage({ type: msg.type || 'message', ...msg }, { queued: true });
@@ -841,7 +881,8 @@ function resetGuardrailState() {
 export {
   handleMessage, escapeHtml, processedMessageIds,
   scanGuardrail, getGuardrailState, resetGuardrailState,
-  loadDedupState, saveDedupState, getDedupPath
+  loadDedupState, saveDedupState, getDedupPath,
+  loadLastAckedId, saveLastAckedId, getLastAckedIdPath
 };
 
 // --- PID lock ---
@@ -920,8 +961,12 @@ if (process.argv[1]?.endsWith('ws-daemon.js')) {
   if (!handle) { console.error('Usage: ws-daemon.js <handle>'); process.exit(1); }
   keys = loadKeys();
   loadDedupState();
+  lastAckedId = loadLastAckedId();
   if (processedMessageIds.size > 0) {
     console.log(`Loaded ${processedMessageIds.size} dedup entries`);
+  }
+  if (lastAckedId) {
+    console.log(`Loaded lastAckedId cursor: ${lastAckedId}`);
   }
 
   // PID lock
