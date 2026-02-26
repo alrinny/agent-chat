@@ -589,7 +589,7 @@ async function handleMessage(msg, opts = {}) {
       const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
       const isFirst = !existsSync(firstDeliveryMarker);
       const hint = isFirst
-        ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.'
+        ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.\nTip: check in on conversations 1-2x daily — reply, share interesting things, but don\'t spam.'
         : channel
           ? `Reply to ${fmtHandle(channel, 'group')}: node ${SEND_JS_PATH} send ${channel} "your reply"\nReply to ${fmtHandle(msg.from)} privately: node ${SEND_JS_PATH} send ${msg.from} "your reply"`
           : `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`;
