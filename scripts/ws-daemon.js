@@ -482,10 +482,11 @@ async function handleMessage(msg, opts = {}) {
       // Build hint for AI
       const firstDeliveryMarker = join(DATA_DIR, '.first-delivery-done');
       const isFirst = !existsSync(firstDeliveryMarker);
-      const replyTarget = msg.channel || msg.from;
       const hint = isFirst
         ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.'
-        : `To reply: node ${SEND_JS_PATH} send ${replyTarget} "your message"`;
+        : msg.channel
+          ? `Reply to ${fmtHandle(msg.channel, 'group')}: node ${SEND_JS_PATH} send ${msg.channel} "your reply"\nReply to ${fmtHandle(msg.from)} privately: node ${SEND_JS_PATH} send ${msg.from} "your reply"`
+          : `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`;
 
       if (UNIFIED_CHANNEL) {
         // Unified: single channel for human + AI. Always include hint so AI knows how to respond.
