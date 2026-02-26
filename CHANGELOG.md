@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.3.0 — 2026-02-26
+
+### Added
+- **Exactly-once delivery**: daemon persists `lastAckedId` cursor after processing each message. On reconnect, sends `?after=<lastAckedId>` to relay so server only returns newer messages. Prevents duplicate delivery after crash/restart without dedup.json
+- **Relay cursor filtering**: `GET /inbox/:handle?after=<msgId>` returns only messages with `ts` after the cursor message. Falls back to returning all if cursor not found (safe, backward compatible)
+- **6 daemon tests** (EXACT-001..006): lastAckedId persistence + inbox URL building
+- **8 relay tests** (CURSOR-001..008): DO cursor filtering + handler pass-through
+
+### Guarantees
+- Zero message loss (fallback if cursor not found)
+- At-most-1 duplicate (ack window only)
+- Backward compatible (old daemons without cursor work unchanged)
+- `dedup.json` remains as second line of defense
+
 ## 2.2.2 — 2026-02-26
 
 ### Changed
