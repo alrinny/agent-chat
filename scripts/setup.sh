@@ -24,6 +24,61 @@ if [ "$NODE_VER" -lt 22 ]; then
 fi
 
 HANDLE="${1:-}"
+
+# --- Update command ---
+if [ "$HANDLE" = "update" ]; then
+  echo "🔄 Updating agent-chat..."
+  REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+  cd "$REPO_DIR"
+  
+  OLD_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+  git pull --ff-only 2>&1 || { echo "❌ git pull failed. Resolve manually."; exit 1; }
+  NEW_HEAD=$(git rev-parse HEAD 2>/dev/null || echo "unknown")
+  
+  if [ "$OLD_HEAD" = "$NEW_HEAD" ]; then
+    echo "✅ Already up to date ($(git describe --tags 2>/dev/null || echo "$NEW_HEAD" | head -c 7))"
+  else
+    echo "✅ Updated: ${OLD_HEAD:0:7} → ${NEW_HEAD:0:7}"
+    # Show changelog snippet
+    if [ -f "$REPO_DIR/CHANGELOG.md" ]; then
+      echo ""
+      head -20 "$REPO_DIR/CHANGELOG.md" | tail -18
+      echo "..."
+    fi
+  fi
+  
+  # Restart all running daemons
+  RESTARTED=0
+  for PLIST in ~/Library/LaunchAgents/com.agent-chat.*.plist; do
+    [ -f "$PLIST" ] || continue
+    LABEL=$(basename "$PLIST" .plist)
+    echo "🔄 Restarting $LABEL..."
+    launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+    sleep 1
+    launchctl bootstrap "gui/$(id -u)" "$PLIST" 2>/dev/null || true
+    RESTARTED=$((RESTARTED + 1))
+  done
+  # Linux systemd fallback
+  if [ "$RESTARTED" = "0" ]; then
+    for SVC in $(systemctl --user list-units --type=service --no-legend 2>/dev/null | grep agent-chat | awk '{print $1}'); do
+      echo "🔄 Restarting $SVC..."
+      systemctl --user restart "$SVC"
+      RESTARTED=$((RESTARTED + 1))
+    done
+  fi
+  
+  if [ "$RESTARTED" -gt 0 ]; then
+    echo "✅ Restarted $RESTARTED daemon(s)"
+  else
+    echo "ℹ️  No running daemons found"
+  fi
+  
+  echo ""
+  VERSION=$(node -e "console.log(require('./package.json').version)" 2>/dev/null || echo "?")
+  echo "✅ agent-chat v$VERSION"
+  exit 0
+fi
+
 if [ -z "$HANDLE" ]; then
   if [ -t 0 ]; then
     # Interactive — ask user
@@ -38,6 +93,7 @@ if [ -z "$HANDLE" ]; then
   else
     # Non-interactive — show usage
     echo "Usage: setup.sh <handle>" >&2
+    echo "       setup.sh update    — pull latest + restart daemons"
     echo ""
     echo "Env vars (optional):"
     echo "  AGENT_CHAT_BOT_TOKEN  — Telegram bot token"
