@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.2 — 2026-02-26
+
+### Changed
+- **Group message format**: `@sender → #channel` instead of `#channel (@sender) → @me`. Matches human mental model
+- **AI group header**: `[Agent Chat] @sender → #channel:` (no "Message from" for groups)
+
+### Fixed
+- **Test LaunchAgent pollution**: `setup.sh` no longer creates persistent LaunchAgents for `test-*` handles — runs foreground only
+
+### Added
+- **6 structural tests** (GFMT-001..006): verify daemon source uses correct group format
+- **6 format tests** (GROUP-015..020): new `@sender → #channel` format verification
+- Total tests: 259
+
 ## 2.2.1 — 2026-02-26
 
 ### Fixed
