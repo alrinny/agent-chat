@@ -217,6 +217,74 @@ else
   echo "$REG_RESULT"
 fi
 
+# --- Step 2.5: OpenClaw discovery ---
+# Find the openclaw binary so the daemon can deliver messages to the AI.
+# If not found, daemon will use unified fallback (reduced security).
+echo ""
+OPENCLAW_BIN=""
+
+# 1. OPENCLAW_PATH env
+if [ -n "${OPENCLAW_PATH:-}" ] && [ -e "$OPENCLAW_PATH" ]; then
+  OPENCLAW_BIN="$OPENCLAW_PATH"
+  echo "🔍 OpenClaw found from OPENCLAW_PATH: $OPENCLAW_BIN"
+fi
+
+# 2. PATH lookup
+if [ -z "$OPENCLAW_BIN" ]; then
+  OPENCLAW_BIN_WHICH=$(which openclaw 2>/dev/null || true)
+  if [ -n "$OPENCLAW_BIN_WHICH" ]; then
+    OPENCLAW_BIN="$OPENCLAW_BIN_WHICH"
+    echo "🔍 OpenClaw found on PATH: $OPENCLAW_BIN"
+  fi
+fi
+
+# 3. Standard locations
+if [ -z "$OPENCLAW_BIN" ]; then
+  for CANDIDATE in \
+    "$HOME/openclaw/dist/index.js" \
+    "$HOME/.openclaw/openclaw" \
+    "/usr/local/bin/openclaw" \
+    "/opt/homebrew/bin/openclaw"; do
+    if [ -e "$CANDIDATE" ]; then
+      OPENCLAW_BIN="$CANDIDATE"
+      echo "🔍 OpenClaw found at standard path: $OPENCLAW_BIN"
+      break
+    fi
+  done
+fi
+
+# 4. Ask user (interactive only)
+if [ -z "$OPENCLAW_BIN" ] && [ -t 0 ]; then
+  echo "⚠️  OpenClaw binary not found automatically."
+  read -p "Path to openclaw binary (Enter to skip): " USER_OPENCLAW_PATH
+  if [ -n "$USER_OPENCLAW_PATH" ] && [ -e "$USER_OPENCLAW_PATH" ]; then
+    OPENCLAW_BIN="$USER_OPENCLAW_PATH"
+  fi
+fi
+
+# Save to config.json
+if [ -n "$OPENCLAW_BIN" ]; then
+  echo "✅ OpenClaw path: $OPENCLAW_BIN"
+  # Update config.json with openclawPath
+  node -e "
+    const fs = require('fs');
+    const p = '$CONFIG_DIR/config.json';
+    const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+    cfg.openclawPath = '$OPENCLAW_BIN';
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+  "
+else
+  echo "⚠️  OpenClaw not found. AI delivery will use unified mode (reduced security)."
+  echo "   Set openclawPath in $CONFIG_DIR/config.json later to enable split delivery."
+  node -e "
+    const fs = require('fs');
+    const p = '$CONFIG_DIR/config.json';
+    const cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+    cfg.openclawPath = null;
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2));
+  "
+fi
+
 # --- Step 3: Telegram configuration ---
 echo ""
 BOT_TOKEN="${AGENT_CHAT_BOT_TOKEN:-}"

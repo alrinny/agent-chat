@@ -47,6 +47,69 @@ const handleCfg = loadHandleConfig();
 const BLIND_RECEIPTS = handleCfg.blindReceipts === true;
 const UNIFIED_CHANNEL = handleCfg.unifiedChannel === true;
 
+// --- OpenClaw discovery ---
+// Resolves the path to the openclaw binary. Checks (in order):
+// 1. config.json openclawPath  2. OPENCLAW_PATH env  3. PATH (which)  4. standard locations
+// Returns absolute path string or null. Result is cached for the process lifetime.
+let _openclawPathCache;
+let _openclawPathResolved = false;
+let _unifiedFallbackWarningShown = false;
+
+function resolveOpenClaw() {
+  if (_openclawPathResolved) return _openclawPathCache;
+  _openclawPathResolved = true;
+
+  // 1. Explicit config
+  if (handleCfg.openclawPath) {
+    if (existsSync(handleCfg.openclawPath)) {
+      verbose('OpenClaw resolved from config.json:', handleCfg.openclawPath);
+      _openclawPathCache = handleCfg.openclawPath;
+      return _openclawPathCache;
+    }
+    console.warn(`[WARN] openclawPath in config.json not found: ${handleCfg.openclawPath}`);
+  }
+
+  // 2. Environment variable
+  if (process.env.OPENCLAW_PATH) {
+    if (existsSync(process.env.OPENCLAW_PATH)) {
+      verbose('OpenClaw resolved from OPENCLAW_PATH env:', process.env.OPENCLAW_PATH);
+      _openclawPathCache = process.env.OPENCLAW_PATH;
+      return _openclawPathCache;
+    }
+    console.warn(`[WARN] OPENCLAW_PATH env not found: ${process.env.OPENCLAW_PATH}`);
+  }
+
+  // 3. PATH lookup
+  try {
+    const which = execFileSync('which', ['openclaw'], { timeout: 5000 }).toString().trim();
+    if (which && existsSync(which)) {
+      verbose('OpenClaw resolved from PATH:', which);
+      _openclawPathCache = which;
+      return _openclawPathCache;
+    }
+  } catch { /* not on PATH */ }
+
+  // 4. Standard locations
+  const candidates = [
+    join(process.env.HOME, 'openclaw', 'dist', 'index.js'),
+    join(process.env.HOME, '.openclaw', 'openclaw'),
+    '/usr/local/bin/openclaw',
+    '/opt/homebrew/bin/openclaw',
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) {
+      verbose('OpenClaw resolved from standard path:', candidate);
+      // If it's index.js, we'll need to run it with node
+      _openclawPathCache = candidate;
+      return _openclawPathCache;
+    }
+  }
+
+  console.warn('[WARN] OpenClaw not found. AI delivery will use unified fallback (reduced security).');
+  _openclawPathCache = null;
+  return null;
+}
+
 // Load keys once at startup (deferred for testability)
 function loadKeys() {
   if (!CONFIG_DIR) return null;
@@ -317,6 +380,7 @@ function resolveSessionId(threadId) {
 // Deliver a message to the AI agent via openclaw agent --local --deliver.
 // Primary: uses the thread session UUID (same AI context as Telegram thread).
 // Fallback: uses isolated "agent-chat-inbox" session with --reply-to for thread routing.
+// Unified fallback: if OpenClaw is not found, delivers via Telegram (both human + AI see it).
 // AI receives the message with full workspace/skills/memory context and responds in the thread.
 async function deliverToAI(text) {
   verbose(`deliverToAI: ${text.length} chars`);
@@ -327,6 +391,52 @@ async function deliverToAI(text) {
   }
 
   const tg = loadTelegramConfig();
+  const openclawBin = resolveOpenClaw();
+
+  if (!openclawBin) {
+    // Unified fallback: OpenClaw not found — deliver via Telegram so AI can still see it
+    // (in unified mode, the Telegram thread IS the AI session)
+    if (!_unifiedFallbackWarningShown) {
+      _unifiedFallbackWarningShown = true;
+      console.warn('[UNIFIED-FALLBACK] OpenClaw not found. Delivering via Telegram (reduced security).');
+      if (tg) {
+        try {
+          const warningPayload = { chat_id: tg.chatId, parse_mode: 'HTML',
+            text: '⚠️ <b>OpenClaw not found</b> — using unified delivery. AI sees all messages without security filtering.\n\n<i>Set <code>openclawPath</code> in config.json or install OpenClaw to restore split mode.</i>' };
+          if (tg.threadId) warningPayload.message_thread_id = tg.threadId;
+          await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(warningPayload), signal: AbortSignal.timeout(10000)
+          });
+        } catch (e) { console.error('Warning delivery failed:', e.message); }
+      }
+    }
+    // Deliver the actual AI message via Telegram (unified — human already saw their version via sendTelegram)
+    if (tg) {
+      try {
+        const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
+        if (tg.threadId) payload.message_thread_id = tg.threadId;
+        const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload), signal: AbortSignal.timeout(10000)
+        });
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}));
+          console.error(`Unified fallback Telegram error ${res.status}:`, e.description || 'unknown');
+        } else {
+          console.log('[DELIVER-UNIFIED]', text);
+        }
+      } catch (e2) {
+        console.error('All delivery methods failed:', e2.message);
+      }
+    }
+    return;
+  }
+
+  // Determine how to invoke openclaw: direct binary or node + index.js
+  const isIndexJs = openclawBin.endsWith('.js');
+  const execBin = isIndexJs ? process.execPath : openclawBin;
+  const baseArgs = isIndexJs ? [openclawBin] : [];
 
   // --local runs embedded agent (required for --deliver to work; gateway path doesn't deliver).
   // --deliver sends AI's reply to the Telegram thread.
@@ -336,9 +446,9 @@ async function deliverToAI(text) {
   const sessionUUID = resolveSessionId(tg?.threadId);
   if (sessionUUID) {
     try {
-      const args = ['agent', '--local', '--session-id', sessionUUID, '-m', text,
+      const args = [...baseArgs, 'agent', '--local', '--session-id', sessionUUID, '-m', text,
         '--deliver', '--channel', 'telegram'];
-      execFileSync('openclaw', args, { stdio: 'inherit', timeout: 120000 });
+      execFileSync(execBin, args, { stdio: 'inherit', timeout: 120000 });
       console.log('[DELIVER-SESSION]', text);
       return;
     } catch (err) {
@@ -350,40 +460,21 @@ async function deliverToAI(text) {
   // Fallback: isolated session with explicit thread routing.
   // Works when thread session doesn't exist yet (shouldn't happen after setup bootstrap).
   try {
-    const args = ['agent', '--local', '--session-id', 'agent-chat-inbox', '-m', text,
+    const args = [...baseArgs, 'agent', '--local', '--session-id', 'agent-chat-inbox', '-m', text,
       '--deliver', '--channel', 'telegram'];
     if (tg?.chatId) {
       const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
       args.push('--reply-to', target);
     }
-    execFileSync('openclaw', args, { stdio: 'inherit', timeout: 120000 });
+    execFileSync(execBin, args, { stdio: 'inherit', timeout: 120000 });
     console.log('[DELIVER-FALLBACK]', text);
     return;
   } catch (err) {
     console.error('Isolated session delivery failed:', err.message);
   }
 
-  // Last resort: Telegram Bot API direct (human sees in thread, AI does not)
-  if (tg) {
-    try {
-      const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
-      if (tg.threadId) payload.message_thread_id = tg.threadId;
-      const res = await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(10000)
-      });
-      if (!res.ok) {
-        const e = await res.json().catch(() => ({}));
-        console.error(`Telegram API fallback error ${res.status}:`, e.description || 'unknown');
-      } else {
-        console.log('[DELIVER-API]', text);
-      }
-    } catch (e2) {
-      console.error('All delivery methods failed:', e2.message);
-    }
-  }
+  // If OpenClaw was found but both session methods failed, log error (don't duplicate to Telegram)
+  console.error('[DELIVER-FAILED] OpenClaw found but delivery failed. Check openclaw logs.');
 }
 
 // --- Message handling ---
@@ -454,8 +545,12 @@ async function handleMessage(msg, opts = {}) {
       else if (isUnscanned) warningLine = '❓ <i>not checked for harm</i>\n';
 
       // Message header — use proper prefix for handle type
-      const icon = aiExcluded ? '🔒' : '📨';
-      const privacyNote = aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '';
+      // In unified fallback mode (no OpenClaw), warn that AI sees everything
+      const inUnifiedFallback = !DELIVER_CMD && !resolveOpenClaw() && !UNIFIED_CHANNEL;
+      const icon = inUnifiedFallback ? '⚠️' : (aiExcluded ? '🔒' : '📨');
+      const privacyNote = inUnifiedFallback
+        ? ' <i>(AI sees this — fix setup)</i>'
+        : (aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '');
       // Incoming group: #group (@sender) → @me. DM: @sender → @me
       const fromPart = msg.channel
         ? `${escapeHtml(fmtHandle(msg.channel, handleTypeCache.get(msg.channel) || 'group'))} (${escapeHtml(fmtHandle(msg.from))})`
