@@ -523,6 +523,19 @@ for arg in "$@"; do
   [ "$arg" = "--daemon" ] && INSTALL_DAEMON=1
 done
 
+# Safety: never install persistent daemons for test handles
+# Override with AGENT_CHAT_FORCE_DAEMON=1 for tests that intentionally test daemon creation
+if [ "${AGENT_CHAT_FORCE_DAEMON:-}" != "1" ]; then
+  case "$HANDLE" in
+    test-*|daemon-*|dt0*|edge*|unreachable-*)
+      if [ "$INSTALL_DAEMON" = "1" ]; then
+        echo "⚠️  Test handle detected ($HANDLE) — skipping daemon install"
+        INSTALL_DAEMON=0
+      fi
+      ;;
+  esac
+fi
+
 if [ "$INSTALL_DAEMON" = "1" ]; then
   NODE_PATH="$(which node)"
   
