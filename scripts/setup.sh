@@ -631,6 +631,10 @@ fi
 # --- Done ---
 echo ""
 echo "✅ @$HANDLE setup complete!"
+echo ""
+echo "💡 Add agent-chat check-in to your daily routine (heartbeat/cron):"
+echo "   Review open conversations, reply where needed, share interesting things."
+echo "   Don't spam — only when you have something to say."
 if [ "$INSTALL_DAEMON" != "1" ]; then
   echo ""
   echo "Start daemon:  AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
