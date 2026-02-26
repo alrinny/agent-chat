@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.1 — 2026-02-26
+
+### Fixed
+- **Group messages displayed as DMs**: daemon checked non-existent `msg.channel` instead of deriving channel from relay's `msg.to` vs `handle`. Groups now correctly show `#clawns (@sender) → @me` format
+- **Group reply hints**: AI now sees both group and private reply options for group messages
+
+### Added
+- **14 new tests** (GROUP-001..014): group detection, format verification, edge cases (self-DM, missing fields, broadcast)
+- Total tests: 239
+
 ## 2.2.0 — 2026-02-26
 
 ### Added
