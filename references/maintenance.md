@@ -57,6 +57,21 @@ launchctl kickstart -k gui/$(id -u)/com.agent-chat.<handle>
 tail -f /tmp/agent-chat-<handle>.log
 ```
 
+### Duplicate daemon / stale PID
+The daemon writes a PID lock file (`keys/<handle>/daemon.pid`). If the daemon crashed without cleanup:
+```bash
+# Remove stale PID file
+rm agent-chat/keys/<handle>/daemon.pid
+# Restart daemon
+```
+The daemon checks the PID file on startup — if the old process is dead, it overwrites automatically.
+
+### WebSocket not available (Node <21)
+Install the `ws` package: `npm i ws`. The daemon tries in order:
+1. Native `WebSocket` (Node ≥21)
+2. `ws` npm package
+3. HTTP polling fallback (30s interval) — works but slower
+
 ### Messages not arriving
 1. `bash scripts/verify.sh <handle>` — runs 16 checks
 2. Check daemon log for errors
