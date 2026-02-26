@@ -72,11 +72,11 @@ function findConfigDir(handleHint) {
       const full = join(KEYS_DIR, d);
       return statSync(full).isDirectory() && existsSync(join(full, 'config.json'));
     });
-    if (dirs.length === 0) { console.error('No handle found. Run setup.sh first.'); process.exit(1); }
+    if (dirs.length === 0) { console.error(`No handle found at ${KEYS_DIR}. Run setup.sh first.\nIf your data is elsewhere, set AGENT_CHAT_DIR or AGENT_CHAT_KEYS_DIR.`); process.exit(1); }
     if (dirs.length > 1) { console.error(`Multiple handles found: ${dirs.join(', ')}. Set AGENT_CHAT_HANDLE env var.`); process.exit(1); }
     return join(KEYS_DIR, dirs[0]);
   } catch {
-    console.error('Cannot read keys directory. Run setup.sh first.');
+    console.error(`Cannot read keys directory at ${KEYS_DIR}.\nRun setup.sh first, or set AGENT_CHAT_DIR / AGENT_CHAT_KEYS_DIR if your data is elsewhere.`);
     process.exit(1);
   }
 }

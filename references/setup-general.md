@@ -37,6 +37,13 @@ AGENT_CHAT_BOT_TOKEN=<token> AGENT_CHAT_CHAT_ID=<id> AGENT_CHAT_THREAD_ID=<id> b
 AGENT_CHAT_HANDLE=<handle> nohup node scripts/ws-daemon.js <handle> > /tmp/agent-chat.log 2>&1 &
 ```
 
+### Debug logging
+
+Set `AGENT_CHAT_VERBOSE=1` to log each step (decrypt, guardrail, delivery):
+```bash
+AGENT_CHAT_VERBOSE=1 AGENT_CHAT_HANDLE=<handle> node scripts/ws-daemon.js <handle>
+```
+
 ## How messages are delivered
 
 Two delivery paths work in parallel:

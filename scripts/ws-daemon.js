@@ -28,6 +28,9 @@ const DATA_DIR = resolveDataDir();
 const KEYS_DIR = resolveKeysDir();
 const DELIVER_CMD = process.env.AGENT_DELIVER_CMD;
 const LAKERA_KEY = process.env.LAKERA_GUARD_KEY;
+const VERBOSE = process.env.AGENT_CHAT_VERBOSE === '1' || process.env.AGENT_CHAT_VERBOSE === 'true';
+
+function verbose(...args) { if (VERBOSE) console.log('[VERBOSE]', ...args); }
 
 // Resolve absolute path to send.js (always relative to this file, not cwd)
 const __script_dirname = dirname(fileURLToPath(import.meta.url));
@@ -261,6 +264,7 @@ async function scanGuardrail(text, messageId = null) {
 // --- Delivery ---
 
 async function sendTelegram(text, buttons = null) {
+  verbose(`sendTelegram: ${text.length} chars${buttons ? ', with buttons' : ''}`);
   const tg = loadTelegramConfig();
   if (!tg) return deliverFallback(text, buttons);
 
@@ -315,6 +319,7 @@ function resolveSessionId(threadId) {
 // Fallback: uses isolated "agent-chat-inbox" session with --reply-to for thread routing.
 // AI receives the message with full workspace/skills/memory context and responds in the thread.
 async function deliverToAI(text) {
+  verbose(`deliverToAI: ${text.length} chars`);
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
     execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
@@ -386,12 +391,13 @@ async function deliverToAI(text) {
 async function handleMessage(msg, opts = {}) {
   const contacts = loadContacts(null);
   const contactLabel = contacts[msg.from]?.label || msg.from;
+  verbose(`handleMessage: type=${msg.type}, from=${msg.from}, id=${msg.id}, effectiveRead=${msg.effectiveRead}, queued=${!!opts.queued}`);
 
   if (msg.type === 'message') {
     // Dedup: skip if already processed at SAME trust level
     // Redeliver sends same ID with UPGRADED effectiveRead → must process again
     const dedupKey = `${msg.id}:${msg.effectiveRead}`;
-    if (msg.id && processedMessageIds.has(dedupKey)) return;
+    if (msg.id && processedMessageIds.has(dedupKey)) { verbose(`dedup skip: ${dedupKey}`); return; }
     if (msg.id) {
       processedMessageIds.add(dedupKey);
       saveDedupState();
@@ -427,10 +433,12 @@ async function handleMessage(msg, opts = {}) {
       }
 
       // Decrypt
+      verbose(`Decrypting message from ${fmtHandle(msg.from)}...`);
       const plaintext = await decryptFromSender(
         msg.ciphertext, msg.ephemeralKey, msg.nonce,
         keys.x25519PrivateKey
       );
+      verbose(`Decrypted: ${plaintext.length} chars from ${fmtHandle(msg.from)}`);
 
       // --- Determine delivery parameters ---
       const isTrusted = msg.effectiveRead === 'trusted';
@@ -438,6 +446,7 @@ async function handleMessage(msg, opts = {}) {
       const isFlagged = scan.flagged && !scan.unavailable;
       const isUnscanned = scan.unavailable;
       const aiExcluded = !isTrusted || isFlagged; // blind or injection → AI doesn't see
+      verbose(`Trust: ${isTrusted ? 'trusted' : 'blind'}, guardrail: ${isFlagged ? 'FLAGGED' : isUnscanned ? 'unavailable' : 'clean'}, aiExcluded: ${aiExcluded}`);
 
       // Warning line (optional, directly above the header — no blank line between)
       let warningLine = '';
@@ -689,9 +698,10 @@ async function connect() {
 // --- HTTP polling fallback ---
 
 async function pollFallback() {
-  console.log('WebSocket unavailable, falling back to HTTP polling...');
+  console.log('⚠️ WebSocket unavailable, falling back to HTTP polling (30s interval). Install ws package for real-time: npm i ws');
   while (true) {
     try {
+      verbose('Polling inbox...');
       const { messages } = await relayGet(`/inbox/${handle}`);
       if (messages) {
         for (const msg of messages) {
