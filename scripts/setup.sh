@@ -538,6 +538,14 @@ fi
 
 if [ "$INSTALL_DAEMON" = "1" ]; then
   NODE_PATH="$(which node)"
+
+  # Skip persistent daemon for test handles — run foreground only
+  if echo "$HANDLE" | grep -q '^test-'; then
+    echo "🧪 Test handle detected — skipping LaunchAgent/systemd install"
+    echo "   Starting daemon in foreground (Ctrl+C to stop):"
+    echo "   AGENT_CHAT_HANDLE=$HANDLE node $SCRIPT_DIR/ws-daemon.js $HANDLE"
+    exec "$NODE_PATH" "$SCRIPT_DIR/ws-daemon.js" "$HANDLE"
+  fi
   
   if [ "$(uname)" = "Darwin" ]; then
     PLIST_DIR="$HOME/Library/LaunchAgents"
