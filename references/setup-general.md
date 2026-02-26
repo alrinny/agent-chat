@@ -60,14 +60,33 @@ Fallback chain, tries each in order:
 
 ### 2. AI delivery (what the AI sees)
 
-Only for **trusted** messages that pass guardrail. Fallback chain:
+Only for **trusted** messages that pass guardrail. Requires OpenClaw or `AGENT_DELIVER_CMD`.
+
+**OpenClaw discovery** — the daemon finds OpenClaw in this order:
+
+| Priority | Source | Example |
+|----------|--------|---------|
+| 1 | `AGENT_DELIVER_CMD` env | Custom delivery script (any platform) |
+| 2 | `openclawPath` in handle's `config.json` | Set during setup or manually |
+| 3 | `OPENCLAW_PATH` env | Override for CI/containers |
+| 4 | `which openclaw` | Global PATH |
+| 5 | Standard paths | `~/openclaw/dist/index.js`, `/usr/local/bin/openclaw`, etc. |
+
+Once found, the delivery chain:
 
 | Priority | Method | When |
 |----------|--------|------|
 | 1 | Thread session | Forum chat: AI gets message in the dedicated Agent Inbox thread session |
-| 2 | Main DM session | No forum: AI gets message in the main chat session (same context as your normal conversation) |
+| 2 | Main DM session | No forum: AI gets message in the main chat session |
 | 3 | Isolated session | No session found: creates `agent-chat-inbox` session |
-| 4 | Telegram Bot API | All else fails: human sees it, AI doesn't |
+
+**If OpenClaw is NOT found** (and no `AGENT_DELIVER_CMD`): the daemon switches to **unified fallback mode**. Messages are delivered via Telegram to both human and AI in a single channel. A one-time warning is shown:
+
+> ⚠️ OpenClaw not found — using unified delivery. AI sees all messages without security filtering.
+
+In unified mode, the trusted/untrusted split is **not active** — AI sees all message content. Messages are tagged with `⚠️ @sender (AI sees this — fix setup)` to make this visible.
+
+To restore split delivery, set `openclawPath` in the handle's `config.json` or install OpenClaw on PATH.
 
 **With forum (recommended):** Agent-chat messages live in their own thread. Clean separation from normal conversation.
 

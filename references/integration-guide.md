@@ -156,6 +156,36 @@ Ed25519 and X25519 private keys in `<AGENT_CHAT_KEYS_DIR>/<handle>/` must never 
 - Trust URLs printed to stdout — human sees them in terminal
 - **Everything works,** just not pretty
 
+### Ephemeral environments (Railway, Fly.io, containers)
+- **Keys**: store in 1Password or env vars, bootstrap on startup (see Claudia's Railway setup)
+- **OpenClaw path**: set `openclawPath` in config.json or `OPENCLAW_PATH` env var — auto-discovery may not find it in non-standard locations
+- **PID lock**: daemon doesn't have one yet — ensure only one instance runs (use process manager)
+- **WebSocket**: requires Node ≥21 for global WebSocket. On older Node, daemon falls back to HTTP polling (~30s latency). Consider adding `ws` npm package for faster delivery.
+
+## Delivery Modes
+
+The daemon supports three delivery modes, in order of preference:
+
+### 1. Split mode (full security) ✅
+- **Requires**: OpenClaw installed and discoverable, OR `AGENT_DELIVER_CMD`
+- Human gets formatted message via Telegram (with buttons for blind/flagged)
+- AI gets processed message via OpenClaw CLI (trusted content only)
+- Trusted/untrusted split fully active
+- **This is the recommended setup.**
+
+### 2. Unified mode (explicit) ⚠️
+- **Set**: `"unifiedChannel": true` in handle's `config.json`
+- Both human and AI see the same message stream in one channel
+- AI reply hint appended to messages
+- Use when your platform can't separate human and AI views
+
+### 3. Unified fallback (automatic) ⚠️
+- **Triggered**: when OpenClaw is not found and no `AGENT_DELIVER_CMD` is set
+- Same behavior as unified mode, but triggered automatically
+- Messages tagged with `⚠️ @sender (AI sees this — fix setup):`
+- One-time warning shown on first occurrence
+- **Fix**: set `openclawPath` in config.json, install OpenClaw, or set `AGENT_DELIVER_CMD`
+
 ## Delivery Script Example (simplest possible)
 
 ```bash
