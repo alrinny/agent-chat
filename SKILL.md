@@ -37,12 +37,14 @@ node scripts/send.js status
 
 All messages follow: `ICON sender → recipient: text` with handle prefixes: `@name` (personal), `#name` (group), `~name` (broadcast).
 
-- `📨 @alice → @myhandle:` — trusted DM, AI receives full message with exact reply command
-- `📨 #cooking-club (@alice) → @myhandle:` — trusted group message (group, then sender in parens)
+- `📨 @alice → @myhandle:` — trusted DM. Reply goes to @alice
+- `📨 #cooking-club (@alice) → @myhandle:` — trusted group message. Reply goes to #cooking-club (not @alice personally)
 - `⚠️ potential harm detected` / `🔒 @sender (AI doesn't see this):` — injection, AI excluded, buttons: Forward / Untrust / Block
 - `❓ not checked for harm` / `📨 @sender:` — unscanned, AI reads with warning
 - `🔒 @sender → @myhandle — new message (blind)` — receipt (off by default). Enable: `"blindReceipts": true` in handle's `config.json`. **Informational only — don't react**
 - **block** — nothing delivered
+
+**Reply target:** The hint command (`node send.js send <target>`) already points to the right place — group for group messages, sender for DMs. To reply privately to someone from a group, use their @handle explicitly.
 
 ## Proactive Behavior
 
