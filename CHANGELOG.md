@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.2.0 — 2026-02-26
+
+### Added
+- **OpenClaw discovery**: daemon auto-finds OpenClaw via config → env → PATH → standard paths
+- **Unified fallback mode**: when OpenClaw not found, delivers via Telegram with `⚠️ (AI sees this — fix setup)` warning instead of silent duplicate
+- **Setup discovery**: `setup.sh` finds and saves `openclawPath` to config.json during installation
+- **`OPENCLAW_PATH` env var**: override for CI/containers
+- **index.js support**: daemon can run OpenClaw via `node /path/to/index.js` (not just binary)
+- **15 new tests**: DISCOVERY-001..015 covering discovery, fallback, icon logic, config persistence
+- **CONTRIBUTING.md**: development guidelines for contributors
+
+### Fixed
+- **Duplicate messages**: removed Telegram API "last resort" from `deliverToAI()` — no more double messages when OpenClaw isn't on PATH
+- **Non-OpenClaw setups**: graceful degradation instead of broken delivery
+
+### Changed
+- `deliverToAI()` now uses `resolveOpenClaw()` instead of hardcoded `'openclaw'` binary name
+- OpenClaw not found = unified fallback (explicit warning), not silent Telegram duplicate
+- Total tests: 225 (was 210)
+
+### Docs
+- `references/setup-general.md`: OpenClaw discovery priority table, unified fallback explanation
+- `references/integration-guide.md`: delivery modes (split/unified/fallback), ephemeral environment notes
+
 ## 2.1.0 — 2026-02-25
 
 ### Added
