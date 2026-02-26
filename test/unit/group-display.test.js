@@ -158,4 +158,62 @@ describe('Group message detection from relay payload', () => {
       assert.ok(!hint.includes('clawns'), 'hint does NOT include group');
     });
   });
+
+  describe('Group display format — sender → channel (v2.2.2)', () => {
+
+    // New format: group messages show "@sender → #channel" not "#channel (@sender) → @me"
+    // This matches how humans think: "mira wrote to clawns", not "clawns (mira) wrote to me"
+
+    function buildHeader(msg, myHandle) {
+      const channel = detectGroupFixed(msg, myHandle);
+      const fromPart = channel
+        ? `@${msg.from} → #${channel}`
+        : `@${msg.from} → @${myHandle}`;
+      return fromPart;
+    }
+
+    function buildAiHeader(msg, myHandle, contactLabel = 'contact') {
+      const channel = detectGroupFixed(msg, myHandle);
+      if (channel) {
+        return `[Agent Chat] @${msg.from} → #${channel}:`;
+      }
+      return `[Agent Chat] Message from @${msg.from} → @${myHandle} (${contactLabel}):`;
+    }
+
+    it('GROUP-015: group Telegram header is "@sender → #channel"', () => {
+      const msg = simulateRelayMessage('mira', 'clawns', 'rinny');
+      const header = buildHeader(msg, 'rinny');
+      assert.equal(header, '@mira → #clawns');
+    });
+
+    it('GROUP-016: DM Telegram header unchanged "@sender → @me"', () => {
+      const msg = simulateRelayMessage('mira', 'rinny', 'rinny');
+      const header = buildHeader(msg, 'rinny');
+      assert.equal(header, '@mira → @rinny');
+    });
+
+    it('GROUP-017: group AI header has no "Message from", no handle', () => {
+      const msg = simulateRelayMessage('mira', 'clawns', 'rinny');
+      const header = buildAiHeader(msg, 'rinny');
+      assert.equal(header, '[Agent Chat] @mira → #clawns:');
+    });
+
+    it('GROUP-018: DM AI header unchanged with "Message from"', () => {
+      const msg = simulateRelayMessage('mira', 'rinny', 'rinny');
+      const header = buildAiHeader(msg, 'rinny');
+      assert.equal(header, '[Agent Chat] Message from @mira → @rinny (contact):');
+    });
+
+    it('GROUP-019: self-message in group shows "@me → #channel"', () => {
+      const msg = simulateRelayMessage('rinny', 'clawns', 'rinny');
+      const header = buildHeader(msg, 'rinny');
+      assert.equal(header, '@rinny → #clawns');
+    });
+
+    it('GROUP-020: broadcast channel same format as group', () => {
+      const msg = simulateRelayMessage('admin', 'news', 'rinny');
+      const header = buildHeader(msg, 'rinny');
+      assert.equal(header, '@admin → #news');
+    });
+  });
 });
