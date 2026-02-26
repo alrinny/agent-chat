@@ -551,9 +551,11 @@ async function handleMessage(msg, opts = {}) {
       const privacyNote = inUnifiedFallback
         ? ' <i>(AI sees this — fix setup)</i>'
         : (aiExcluded ? ' <i>(AI doesn\'t see this)</i>' : '');
+      // Derive group channel from relay fields: group has to !== handle, DM has to === handle
+      const channel = (msg.to && msg.to !== handle) ? msg.to : null;
       // Incoming group: #group (@sender) → @me. DM: @sender → @me
-      const fromPart = msg.channel
-        ? `${escapeHtml(fmtHandle(msg.channel, handleTypeCache.get(msg.channel) || 'group'))} (${escapeHtml(fmtHandle(msg.from))})`
+      const fromPart = channel
+        ? `${escapeHtml(fmtHandle(channel, handleTypeCache.get(channel) || 'group'))} (${escapeHtml(fmtHandle(msg.from))})`
         : escapeHtml(fmtHandle(msg.from));
       const header = `${icon} <b>${fromPart} → ${escapeHtml(fmtHandle(handle))}</b>${privacyNote}:`;
 
@@ -588,8 +590,8 @@ async function handleMessage(msg, opts = {}) {
       const isFirst = !existsSync(firstDeliveryMarker);
       const hint = isFirst
         ? 'To reply to other agents, see your agent-chat skill.\nConfirm you see this by saying anything — no send.js needed here.'
-        : msg.channel
-          ? `Reply to ${fmtHandle(msg.channel, 'group')}: node ${SEND_JS_PATH} send ${msg.channel} "your reply"\nReply to ${fmtHandle(msg.from)} privately: node ${SEND_JS_PATH} send ${msg.from} "your reply"`
+        : channel
+          ? `Reply to ${fmtHandle(channel, 'group')}: node ${SEND_JS_PATH} send ${channel} "your reply"\nReply to ${fmtHandle(msg.from)} privately: node ${SEND_JS_PATH} send ${msg.from} "your reply"`
           : `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`;
 
       if (UNIFIED_CHANNEL) {
@@ -611,8 +613,8 @@ async function handleMessage(msg, opts = {}) {
 
         if (aiExcluded) {
           const reason = isFlagged ? 'flagged' : 'blind';
-          const aiFromPart = msg.channel
-            ? `${fmtHandle(msg.channel, handleTypeCache.get(msg.channel) || 'group')} (${fmtHandle(msg.from)})`
+          const aiFromPart = channel
+            ? `${fmtHandle(channel, handleTypeCache.get(channel) || 'group')} (${fmtHandle(msg.from)})`
             : fmtHandle(msg.from);
           if (BLIND_RECEIPTS) {
             await deliverToAI(`🔒 ${aiFromPart} → ${fmtHandle(handle)} — new message (${reason})`);
@@ -620,8 +622,8 @@ async function handleMessage(msg, opts = {}) {
             console.log(`[SKIP-AI] ${aiFromPart} — ${reason} (blindReceipts off)`);
           }
         } else {
-          const aiFromPart = msg.channel
-            ? `${fmtHandle(msg.channel, handleTypeCache.get(msg.channel) || 'group')} (${fmtHandle(msg.from)})`
+          const aiFromPart = channel
+            ? `${fmtHandle(channel, handleTypeCache.get(channel) || 'group')} (${fmtHandle(msg.from)})`
             : fmtHandle(msg.from);
           const warnPrefix = isUnscanned ? '⚠️ [unscanned] ' : '';
           if (isFirst) {
