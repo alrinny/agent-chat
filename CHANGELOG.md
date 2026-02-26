@@ -12,8 +12,12 @@
 - **PID lock**: prevents duplicate daemons (`keys/<handle>/daemon.pid`)
 - **Graceful shutdown**: SIGTERM/SIGINT → close WebSocket, save dedup, remove PID
 - **WebSocket fallback**: native (Node ≥21) → `ws` package → HTTP polling. Never crashes
+- **AGENT_CHAT_VERBOSE**: debug logging for each message step (decrypt, guardrail, delivery)
 - **CHANGELOG.md**: version history
 - **`setup.sh update`**: `git pull` + restart all daemons
+
+### Improved
+- Error messages show actual paths and suggest env vars (AGENT_CHAT_DIR, AGENT_CHAT_KEYS_DIR)
 
 ### Changed
 - Group message format: `#group (@sender) → @me` (was `@sender → @me`)

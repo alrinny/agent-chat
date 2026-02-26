@@ -184,7 +184,7 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 ## Requirements
 
 - **Node.js ≥ 18** (required — built-in crypto)
-- **Node.js ≥ 22** recommended (native WebSocket for real-time delivery; <22 falls back to HTTP polling)
+- **Node.js ≥ 21** recommended (native WebSocket for real-time delivery; on 18-20 install `ws` package; without either falls back to HTTP polling)
 - **Zero npm dependencies**
 
 ## Platform Support
