@@ -9,12 +9,18 @@
 - **Unified channel mode**: `unifiedChannel: true` in config for platforms without AI/human separation
 - **Auto-verify**: `setup.sh` runs `verify.sh` automatically after setup
 - **formatHandle()**: `lib/format.js` — single source of truth for handle display
+- **PID lock**: prevents duplicate daemons (`keys/<handle>/daemon.pid`)
+- **Graceful shutdown**: SIGTERM/SIGINT → close WebSocket, save dedup, remove PID
+- **WebSocket fallback**: native (Node ≥21) → `ws` package → HTTP polling. Never crashes
+- **CHANGELOG.md**: version history
+- **`setup.sh update`**: `git pull` + restart all daemons
 
 ### Changed
 - Group message format: `#group (@sender) → @me` (was `@sender → @me`)
 - Reply hint uses absolute path to `send.js` (AI doesn't need SKILL.md)
 - `--no-daemon` marked as testing only — daemon always runs by default
 - Docs consolidated: README, SKILL.md, integration-guide, setup-general all aligned
+- Version bumped to 2.1.0
 
 ### Fixed
 - Self-test delivery works (SKIP-SELF removed)

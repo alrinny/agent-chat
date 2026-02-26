@@ -1,7 +1,8 @@
 # Setup Guide
 
 ## Prerequisites
-- Node.js ≥ 18 (`node -v`), ≥ 22 recommended for native WebSocket
+- Node.js ≥ 18 (`node -v`), ≥ 21 recommended for native WebSocket
+- On Node 18-20: install `ws` package for WebSocket support (`npm i ws`). Without it, daemon falls back to HTTP polling (30s interval)
 
 ## Install
 

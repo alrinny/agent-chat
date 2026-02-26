@@ -127,7 +127,7 @@ Prefixes are display-only. CLI commands use raw names: `agent-chat send cooking-
 
 - **Relay**: Cloudflare Workers + Durable Objects. Routes ciphertext, enforces permissions, never decrypts.
 - **Client**: Node.js library + CLI. Handles all crypto locally.
-- **Delivery**: WebSocket (Node 22+) with HTTP polling fallback. AI delivery via `openclaw agent --local --deliver` using the existing session (forum thread or main DM — same AI context as the conversation).
+- **Delivery**: WebSocket (native in Node ≥21, or `ws` package, or HTTP polling fallback — never crashes). PID lock prevents duplicate daemons. Graceful shutdown on SIGTERM/SIGINT. AI delivery via `openclaw agent --local --deliver` using the existing session.
 - **Auth**: Ed25519 signatures on every request. Replay protection via timestamps (±60s window).
 
 ### Client architecture

@@ -15,7 +15,7 @@ import { buildPostHeaders, buildGetHeaders } from '../lib/auth.js';
 import { loadConfig, getKeyPaths, DEFAULT_RELAY_URL, resolveKeysDir, resolveHandleDir, resolveDataDir } from '../lib/config.js';
 import { loadContacts } from '../lib/contacts.js';
 import { formatHandle, inferHandleType } from '../lib/format.js';
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFileSync } from 'node:child_process';
@@ -734,6 +734,77 @@ export {
   loadDedupState, saveDedupState, getDedupPath
 };
 
+// --- PID lock ---
+
+function getPidPath() {
+  return CONFIG_DIR ? join(CONFIG_DIR, 'daemon.pid') : null;
+}
+
+function acquirePidLock() {
+  const pidPath = getPidPath();
+  if (!pidPath) return;
+  
+  // Check if another daemon is running
+  if (existsSync(pidPath)) {
+    try {
+      const oldPid = parseInt(readFileSync(pidPath, 'utf8').trim(), 10);
+      if (oldPid && oldPid !== process.pid) {
+        try {
+          process.kill(oldPid, 0); // Check if process exists
+          console.error(`❌ Another daemon is already running (PID ${oldPid}). Kill it first or remove ${pidPath}`);
+          process.exit(1);
+        } catch {
+          // Process doesn't exist — stale PID file, safe to overwrite
+          console.log(`Removing stale PID file (old PID ${oldPid})`);
+        }
+      }
+    } catch {}
+  }
+  
+  writeFileSync(pidPath, String(process.pid));
+}
+
+function releasePidLock() {
+  const pidPath = getPidPath();
+  if (!pidPath) return;
+  try {
+    if (existsSync(pidPath)) {
+      const storedPid = parseInt(readFileSync(pidPath, 'utf8').trim(), 10);
+      if (storedPid === process.pid) unlinkSync(pidPath);
+    }
+  } catch {}
+}
+
+// --- Graceful shutdown ---
+
+function gracefulShutdown(signal) {
+  console.log(`\n${signal} received. Shutting down...`);
+  if (ws) {
+    try { ws.close(1000, 'daemon shutdown'); } catch {}
+  }
+  releasePidLock();
+  saveDedupState();
+  console.log('Goodbye.');
+  process.exit(0);
+}
+
+// --- WebSocket resolution ---
+// 1. Native WebSocket (Node ≥21)
+// 2. 'ws' npm package (if installed)
+// 3. HTTP polling fallback (never crash)
+
+async function resolveWebSocket() {
+  if (typeof WebSocket !== 'undefined') {
+    return { WS: WebSocket, source: 'native' };
+  }
+  try {
+    const ws = await import('ws');
+    const WS = ws.default || ws.WebSocket || ws;
+    if (typeof WS === 'function') return { WS, source: 'ws package' };
+  } catch {}
+  return { WS: null, source: 'none' };
+}
+
 // Only auto-connect when running as main script
 if (process.argv[1]?.endsWith('ws-daemon.js')) {
   if (!handle) { console.error('Usage: ws-daemon.js <handle>'); process.exit(1); }
@@ -743,9 +814,22 @@ if (process.argv[1]?.endsWith('ws-daemon.js')) {
     console.log(`Loaded ${processedMessageIds.size} dedup entries`);
   }
 
-  if (typeof WebSocket !== 'undefined') {
+  // PID lock
+  acquirePidLock();
+  
+  // Graceful shutdown handlers
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+  // Resolve WebSocket and connect
+  const { WS, source } = await resolveWebSocket();
+  if (WS) {
+    if (source !== 'native') console.log(`Using WebSocket from ${source}`);
+    // Make WS available globally for connect()
+    if (typeof globalThis.WebSocket === 'undefined') globalThis.WebSocket = WS;
     connect();
   } else {
+    console.log('⚠️ No WebSocket available (Node <21, no ws package). Install ws: npm i ws');
     pollFallback();
   }
 }
