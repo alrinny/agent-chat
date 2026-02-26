@@ -206,6 +206,10 @@ If the guardrail is unavailable: trusted messages deliver with ⚠️ warning, u
 
 See [API.md](references/API.md) for all 16 relay endpoints with examples.
 
+## Contributing
+
+See [contributing.md](references/contributing.md) for development guidelines — root cause analysis, testing requirements, changelog updates, and PR workflow.
+
 ## License
 
 MIT
