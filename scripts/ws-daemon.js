@@ -540,6 +540,11 @@ async function deliverToAI(text) {
     try {
       const args = [...baseArgs, 'agent', '--session-id', sessionUUID, '-m', text,
         '--deliver', '--channel', 'telegram'];
+      // Gateway mode needs explicit --reply-to (doesn't auto-resolve from session deliveryContext)
+      if (tg?.chatId) {
+        const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
+        args.push('--reply-to', target);
+      }
       execFileSync(execBin, args, { stdio: 'inherit', timeout: 120000 });
       console.log('[DELIVER-SESSION]', text);
       return;
