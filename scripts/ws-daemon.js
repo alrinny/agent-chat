@@ -374,13 +374,27 @@ function loadMirrors(direction, handle) {
     const data = loadMirrorConfig();
     const m = data.mirrors;
     if (!m) return [];
-    const bucket = (m.inbound || m.outbound)
-      ? (direction === 'outbound' ? m.outbound : m.inbound)
-      : m;
-    if (!bucket) return [];
-    if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
+    // Legacy flat array → all handles, both directions
+    if (Array.isArray(m)) return m.filter(t => t && t.chatId);
+    // Detect format: old (direction-first) vs new (handle-first)
+    // Old has top-level 'inbound'/'outbound' keys
+    if (m.inbound || m.outbound) {
+      const bucket = direction === 'outbound' ? m.outbound : m.inbound;
+      if (!bucket) return [];
+      if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
+      // Old per-handle inside direction bucket
+      const key = handle ? handle.replace(/^@/, '') : null;
+      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+      return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
+    }
+    // New format: handle-first → { "@claudia": [...] } or { "@claudia": { inbound: [...], outbound: [...] } }
     const key = handle ? handle.replace(/^@/, '') : null;
-    const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+    const entry = (key && m[key]) || (key && m[`@${key}`]) || m['*'];
+    if (!entry) return [];
+    // Simple: array → both directions
+    if (Array.isArray(entry)) return entry.filter(t => t && t.chatId);
+    // Split: { inbound: [...], outbound: [...] }
+    const targets = direction === 'outbound' ? entry.outbound : entry.inbound;
     return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
   } catch { return []; }
 }
