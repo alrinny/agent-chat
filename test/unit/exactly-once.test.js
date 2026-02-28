@@ -8,7 +8,8 @@
  * only returns messages newer than cursor.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, before, after } from 'node:test';
+import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -18,14 +19,6 @@ import { tmpdir } from 'node:os';
 
 const TEST_DIR = join(tmpdir(), `exact-once-test-${Date.now()}`);
 const LAST_ACKED_PATH = join(TEST_DIR, 'lastAckedId');
-
-beforeEach(() => {
-  mkdirSync(TEST_DIR, { recursive: true });
-});
-
-afterEach(() => {
-  try { rmSync(TEST_DIR, { recursive: true }); } catch {}
-});
 
 // Helper: same logic as daemon will use
 function saveLastAckedId(id) {
@@ -47,28 +40,36 @@ function buildInboxUrl(handle, lastAckedId) {
 }
 
 describe('exactly-once: lastAckedId persistence', () => {
+  before(() => {
+    mkdirSync(TEST_DIR, { recursive: true });
+  });
+
+  after(() => {
+    try { rmSync(TEST_DIR, { recursive: true }); } catch {}
+  });
+
   // EXACT-001: No file → returns null
   it('EXACT-001: no lastAckedId file returns null', () => {
-    expect(loadLastAckedId()).toBeNull();
+    assert.equal(loadLastAckedId(), null);
   });
 
   // EXACT-002: Save and load
   it('EXACT-002: save and load lastAckedId', () => {
     saveLastAckedId('msg-abc-123');
-    expect(loadLastAckedId()).toBe('msg-abc-123');
+    assert.equal(loadLastAckedId(), 'msg-abc-123');
   });
 
   // EXACT-003: Overwrite with newer id
   it('EXACT-003: overwrite updates to newer id', () => {
     saveLastAckedId('msg-1');
     saveLastAckedId('msg-2');
-    expect(loadLastAckedId()).toBe('msg-2');
+    assert.equal(loadLastAckedId(), 'msg-2');
   });
 
-  // EXACT-004: Corrupt file → returns null (no crash)
-  it('EXACT-004: corrupt file returns null gracefully', () => {
+  // EXACT-004: Corrupt file → returns empty string
+  it('EXACT-004: empty file returns empty string', () => {
     writeFileSync(LAST_ACKED_PATH, '', 'utf8');
-    expect(loadLastAckedId()).toBe('');
+    assert.equal(loadLastAckedId(), '');
     // Empty string is falsy, so buildInboxUrl should treat it as no cursor
   });
 });
@@ -76,13 +77,13 @@ describe('exactly-once: lastAckedId persistence', () => {
 describe('exactly-once: inbox URL building', () => {
   // EXACT-005: No cursor → plain URL
   it('EXACT-005: no cursor builds plain inbox URL', () => {
-    expect(buildInboxUrl('rinny', null)).toBe('/inbox/rinny');
-    expect(buildInboxUrl('rinny', '')).toBe('/inbox/rinny');
-    expect(buildInboxUrl('rinny', undefined)).toBe('/inbox/rinny');
+    assert.equal(buildInboxUrl('rinny', null), '/inbox/rinny');
+    assert.equal(buildInboxUrl('rinny', ''), '/inbox/rinny');
+    assert.equal(buildInboxUrl('rinny', undefined), '/inbox/rinny');
   });
 
   // EXACT-006: With cursor → adds ?after=
   it('EXACT-006: cursor adds after query param', () => {
-    expect(buildInboxUrl('rinny', 'msg-abc-123')).toBe('/inbox/rinny?after=msg-abc-123');
+    assert.equal(buildInboxUrl('rinny', 'msg-abc-123'), '/inbox/rinny?after=msg-abc-123');
   });
 });
