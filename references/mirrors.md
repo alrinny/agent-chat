@@ -11,8 +11,8 @@ Each key is a handle. Value is an array of targets (= both directions):
 {
   "chatId": "119111425",
   "mirrors": {
-    "@claudia": [{ "chatId": "-1003147996033" }],
-    "#clawns":  [{ "chatId": "-1003147996033" }],
+    "@claudia": [{ "chatId": "-1003147996033", "format": "symmetric" }],
+    "#clawns":  [{ "chatId": "-1003147996033", "format": "symmetric" }],
     "@sev1":    [{ "chatId": "-1003147996033", "threadId": 123 }]
   }
 }
@@ -48,10 +48,15 @@ If you need different targets for inbound vs outbound:
 }
 ```
 
-## Symmetric format
+## Format
 
-Set `"mirrorFormat": "symmetric"` in telegram.json root for unified appearance:
+Set `"format": "symmetric"` on each mirror target for unified appearance:
 
+```json
+{ "chatId": "-1003147996033", "format": "symmetric" }
+```
+
+Result:
 ```
 💬 @claudia → @rinny:
 hello!
@@ -60,7 +65,9 @@ hello!
 hey, what's up?
 ```
 
-Without `mirrorFormat` (or `"raw"`) — mirrors forward the original HTML as-is (with 📨/📤 icons).
+Without `format` (or `"format": "raw"`) — mirrors forward the original HTML as-is (with 📨/📤 icons).
+
+Different targets can have different formats — e.g. one group gets symmetric, another gets raw.
 
 ## Legacy formats (backward compatible)
 

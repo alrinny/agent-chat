@@ -399,9 +399,8 @@ function loadMirrors(direction, handle) {
   } catch { return []; }
 }
 
-function formatMirrorText(text, opts) {
-  const config = loadMirrorConfig();
-  if (config.mirrorFormat !== 'symmetric' || !opts) return text;
+function formatMirrorText(text, mirror, opts) {
+  if (mirror.format !== 'symmetric' || !opts) return text;
   const { from, to, plaintext } = opts;
   if (!from || !to || !plaintext) return text;
   return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandle(to))}</b>:\n\n${escapeHtml(plaintext)}`;
@@ -412,9 +411,9 @@ async function sendMirrors(text, direction = 'inbound', handle = null, symmetric
   if (!tg) return;
   const mirrors = loadMirrors(direction, handle);
   if (!mirrors.length) return;
-  const finalText = formatMirrorText(text, symmetricOpts);
   for (const mirror of mirrors) {
     try {
+      const finalText = formatMirrorText(text, mirror, symmetricOpts);
       const payload = { chat_id: mirror.chatId, text: finalText, parse_mode: 'HTML', disable_notification: true };
       if (mirror.threadId) payload.message_thread_id = mirror.threadId;
       await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
