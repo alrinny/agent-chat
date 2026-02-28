@@ -64,11 +64,20 @@ function fmtHandle(name) {
   return `@${name}`;
 }
 
+function fmtHandleWithType(name, type) {
+  if (!name) return '???';
+  // Already prefixed — return as-is (handles from relay are bare, but test edge cases)
+  if (name.startsWith('@') || name.startsWith('#') || name.startsWith('~')) return name;
+  const prefixes = { personal: '@', group: '#', broadcast: '~' };
+  const prefix = prefixes[type || 'personal'] || '@';
+  return `${prefix}${name}`;
+}
+
 function formatMirrorText(text, mirror, opts) {
   if (mirror.format !== 'symmetric' || !opts) return text;
-  const { from, to, plaintext } = opts;
+  const { from, to, toType, plaintext } = opts;
   if (!from || !to || !plaintext) return text;
-  return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandle(to))}</b>:\n\n${escapeHtml(plaintext)}`;
+  return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandleWithType(to, toType))}</b>:\n\n${escapeHtml(plaintext)}`;
 }
 
 before(() => {
@@ -489,5 +498,79 @@ describe('mirror symmetric format', () => {
     const rawResult = formatMirrorText(text, raw, { from: 'claudia', to: 'rinny', plaintext: 'hello' });
     assert.equal(symResult, '💬 <b>@claudia → @rinny</b>:\n\nhello');
     assert.equal(rawResult, text);
+  });
+
+  // Bug regression: toType must be passed explicitly, not inferred from string
+  it('MR-038: symmetric format — toType personal (default)', () => {
+    const result = formatMirrorText('x', sym, { from: 'rinny', to: 'claudia', plaintext: 'hey' });
+    assert.equal(result, '💬 <b>@rinny → @claudia</b>:\n\nhey');
+    // No double prefix — "to" without @ gets @
+  });
+
+  it('MR-039: symmetric format — toType explicit group', () => {
+    const result = formatMirrorText('x', sym, { from: 'claudia', to: 'clawns', toType: 'group', plaintext: 'hi' });
+    assert.equal(result, '💬 <b>@claudia → #clawns</b>:\n\nhi');
+    // Group handle without # prefix gets # via toType
+  });
+
+  it('MR-040: symmetric format — handles from relay are bare (no prefix)', () => {
+    // In practice relay always sends bare names: 'claudia', 'clawns'
+    // Verify bare names format correctly without double prefix
+    const result = formatMirrorText('x', sym, { from: 'claudia', to: 'sev1', plaintext: 'hey' });
+    assert.equal(result, '💬 <b>@claudia → @sev1</b>:\n\nhey');
+    assert.ok(!result.includes('@@'));
+  });
+
+  it('MR-041: symmetric format — to already has # prefix, no double #', () => {
+    // In practice daemon sends 'clawns' not '#clawns', but test the edge case
+    const result = formatMirrorText('x', sym, { from: 'claudia', to: '#clawns', plaintext: 'hi' });
+    assert.ok(!result.includes('##'));
+    assert.ok(result.includes('#clawns'));
+  });
+});
+
+// --- Old format detection edge cases ---
+
+describe('mirror format detection edge cases', () => {
+
+  it('MR-042: handle named "@inbound" does not trigger old format', () => {
+    const dir = join(BASE, 'mr42');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      mirrors: { '@inbound': [{ chatId: '-100111' }] }
+    }));
+    // '@inbound' key → m['@inbound'] exists but m.inbound is undefined (@ prefix)
+    // So old-format detection (m.inbound || m.outbound) = false → handle-first
+    const result = loadMirrors(dir, 'inbound', '@inbound');
+    assert.equal(result.length, 1);
+    assert.equal(result[0].chatId, '-100111');
+  });
+
+  it('MR-043: bare "inbound" handle DOES trigger old format (known limitation)', () => {
+    const dir = join(BASE, 'mr43');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      mirrors: { 'inbound': [{ chatId: '-100111' }] }
+    }));
+    // 'inbound' key → m.inbound is truthy → treated as old direction-first format
+    // This is a known limitation: don't name handles 'inbound' or 'outbound' without @
+    // Old format: m.inbound = [{chatId}] is an array → returned as-is for any handle
+    const result = loadMirrors(dir, 'inbound', 'anyone');
+    assert.equal(result.length, 1); // works but for wrong reason — it's the array itself
+  });
+
+  it('MR-044: handle-first with split inbound/outbound per handle', () => {
+    const dir = join(BASE, 'mr44');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      mirrors: {
+        '#clawns': {
+          inbound: [{ chatId: '-100111' }],
+          outbound: [{ chatId: '-100222' }]
+        }
+      }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', '#clawns')[0].chatId, '-100111');
+    assert.equal(loadMirrors(dir, 'outbound', '#clawns')[0].chatId, '-100222');
   });
 });
