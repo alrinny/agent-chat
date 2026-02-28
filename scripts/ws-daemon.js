@@ -344,7 +344,8 @@ async function scanGuardrail(text, messageId = null) {
       await sendTelegram(
         '⚠️ Guardrail unavailable — messages delivered without security scan.\n\n' +
         'For local scanning:\n<code>export LAKERA_GUARD_KEY=your-key</code>\n' +
-        'Free: lakera.ai → API key in dashboard'
+        'Free: lakera.ai → API key in dashboard',
+        null, { noMirror: true }
       );
     }
   } else {
@@ -355,10 +356,56 @@ async function scanGuardrail(text, messageId = null) {
   return result;
 }
 
+// --- Mirrors ---
+// Send a copy of text to all configured mirror targets (best-effort, no buttons).
+// Mirrors are read from telegram.json: { "mirrors": [{ "chatId": "...", "threadId": 123 }] }
+
+function loadMirrors(direction, handle) {
+  try {
+    const dataFile = join(DATA_DIR, 'telegram.json');
+    const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+    const m = data.mirrors;
+    if (!m) return [];
+    // Pick direction bucket (or fall back to flat legacy)
+    const bucket = (m.inbound || m.outbound)
+      ? (direction === 'outbound' ? m.outbound : m.inbound)
+      : m;
+    if (!bucket) return [];
+    // If bucket is an array → legacy flat format (all handles)
+    if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
+    // Bucket is an object → per-handle map
+    // Normalize handle: strip leading @ for matching
+    const key = handle ? handle.replace(/^@/, '') : null;
+    const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+    return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
+  } catch { return []; }
+}
+
+async function sendMirrors(text, direction = 'inbound', handle = null) {
+  const tg = loadTelegramConfig();
+  if (!tg) return;
+  const mirrors = loadMirrors(direction, handle);
+  if (!mirrors.length) return;
+  for (const mirror of mirrors) {
+    try {
+      const payload = { chat_id: mirror.chatId, text, parse_mode: 'HTML', disable_notification: true };
+      if (mirror.threadId) payload.message_thread_id = mirror.threadId;
+      await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(10000)
+      });
+    } catch (err) {
+      console.error(`Mirror send error (${mirror.chatId}):`, err.message);
+    }
+  }
+}
+
 // --- Delivery ---
 
-async function sendTelegram(text, buttons = null) {
-  verbose(`sendTelegram: ${text.length} chars${buttons ? ', with buttons' : ''}`);
+async function sendTelegram(text, buttons = null, opts = {}) {
+  verbose(`sendTelegram: ${text.length} chars${buttons ? ', with buttons' : ''}${opts.noMirror ? ', noMirror' : ''}`);
   const tg = loadTelegramConfig();
   if (!tg) return deliverFallback(text, buttons);
 
@@ -381,6 +428,9 @@ async function sendTelegram(text, buttons = null) {
     console.error('Telegram sendMessage error:', err);
     deliverFallback(text, buttons);
   }
+
+  // Mirror inbound text to configured targets (skip buttons, system messages, and flagged content)
+  if (!buttons && !opts.noMirror) await sendMirrors(text, 'inbound', opts.handle);
 }
 
 function deliverFallback(text, buttons = null) {
@@ -543,7 +593,7 @@ async function handleMessage(msg, opts = {}) {
                 return;
               }
               console.error(`⚠️ SENDER SIGNATURE INVALID from ${fmtHandle(msg.from)}!`);
-              await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(bad signature)</i>:\n\n<i>Message dropped — invalid signature</i>`);
+              await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(bad signature)</i>:\n\n<i>Message dropped — invalid signature</i>`, null, { noMirror: true });
               if (msg.id) { processedMessageIds.add(dedupKey); saveDedupState(); }
               return;
             }
@@ -630,7 +680,8 @@ async function handleMessage(msg, opts = {}) {
         const hintLine = `\n\n<i>${escapeHtml(hint)}</i>`;
         await sendTelegram(
           `${warningLine}${header}\n\n${escapeHtml(plaintext)}${hintLine}`,
-          buttons
+          buttons,
+          { handle: channel || msg.from }
         );
         if (isFirst) {
           try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
@@ -639,7 +690,8 @@ async function handleMessage(msg, opts = {}) {
         // Standard: separate human + AI channels
         await sendTelegram(
           `${warningLine}${header}\n\n${escapeHtml(plaintext)}`,
-          buttons
+          buttons,
+          { handle: channel || msg.from }
         );
 
         if (aiExcluded) {
@@ -684,7 +736,7 @@ async function handleMessage(msg, opts = {}) {
         return;
       }
       console.error('Decrypt error:', err);
-      await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`);
+      await sendTelegram(`❌ <b>${escapeHtml(fmtHandle(msg.from))}</b> <i>(decrypt error)</i>:\n\n<i>${escapeHtml(err.message)}</i>`, null, { noMirror: true });
     }
     // Update cursor after processing (success or handled error)
     if (msg.id) { lastAckedId = msg.id; saveLastAckedId(msg.id); }
@@ -816,7 +868,7 @@ async function connect() {
       }
     } catch (err) {
       console.error('Message handling error:', err);
-      await sendTelegram(`⚠️ Error processing message: ${escapeHtml(err.message)}`);
+      await sendTelegram(`⚠️ Error processing message: ${escapeHtml(err.message)}`, null, { noMirror: true });
     }
   };
 
@@ -824,7 +876,7 @@ async function connect() {
     console.log(`Disconnected (${event.code}). Reconnecting in ${reconnectDelay / 1000}s...`);
     // Alert user only on persistent disconnection (30s+ = 4th retry)
     if (reconnectDelay >= 16000) {
-      sendTelegram(`⚠️ Agent Chat connection lost. Retrying every ${reconnectDelay / 1000}s...`);
+      sendTelegram(`⚠️ Agent Chat connection lost. Retrying every ${reconnectDelay / 1000}s...`, null, { noMirror: true });
     }
     setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);
