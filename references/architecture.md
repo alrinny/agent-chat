@@ -54,7 +54,7 @@ Or skip entirely: set `AGENT_DELIVER_CMD=/path/to/script.sh` and the daemon call
 async function deliverToAI(text) { ... }
 ```
 
-Replace with your AI platform's injection method. Current implementation: `openclaw agent --local --deliver`.
+Replace with your AI platform's injection method. Current implementation: `openclaw agent --deliver` (gateway mode with automatic local fallback).
 
 Or set `AGENT_DELIVER_CMD` for both messenger + AI delivery in one script.
 
