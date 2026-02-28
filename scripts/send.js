@@ -58,7 +58,7 @@ async function sendEcho(handle, to, message, toType = 'personal') {
   // Mirror outbound echo to configured targets
   const mirrors = loadMirrors('outbound', to);
   if (!mirrors.length) return;
-  const symmetricOpts = { from: handle, to, plaintext: message };
+  const symmetricOpts = { from: handle, to, toType, plaintext: message };
   for (const mirror of mirrors) {
     try {
       const mirrorText = formatMirrorText(text, mirror, symmetricOpts);
@@ -104,10 +104,9 @@ function loadMirrors(direction, handle) {
 
 function formatMirrorText(text, mirror, opts) {
   if (mirror.format !== 'symmetric' || !opts) return text;
-  const { from, to, plaintext } = opts;
+  const { from, to, toType, plaintext } = opts;
   if (!from || !to || !plaintext) return text;
-  const toType = inferHandleType(to);
-  return `💬 <b>${escapeHtml(formatHandle(from))} → ${escapeHtml(formatHandle(to, toType))}</b>:\n\n${escapeHtml(plaintext)}`;
+  return `💬 <b>${escapeHtml(formatHandle(from))} → ${escapeHtml(formatHandle(to, toType || 'personal'))}</b>:\n\n${escapeHtml(plaintext)}`;
 }
 
 function escapeHtml(s) {

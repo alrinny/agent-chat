@@ -359,8 +359,8 @@ async function scanGuardrail(text, messageId = null) {
 // --- Mirrors ---
 // Send a copy of text to all configured mirror targets (best-effort, no buttons).
 // Mirrors are read from telegram.json.
-// mirrorFormat: "symmetric" → unified "💬 @from → @to:\n\ntext" format
-//              "raw" or absent → forwards text as-is
+// Per-target "format": "symmetric" → unified "💬 @from → @to:\n\ntext"
+// No format or "raw" → forwards text as-is
 
 function loadMirrorConfig() {
   try {
