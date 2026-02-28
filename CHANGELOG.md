@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.3.1 — 2026-02-28
+
+### Fixed
+- **Handle prefix stripping in send CLI**: `send.js send '#clawns' "msg"` now works correctly. Previously, `#` in the handle was passed directly into the relay URL path (`/handle/info/#clawns`), where `#` acts as a URL fragment identifier — the server received `/handle/info/` instead, returning 404. Now `@`, `#`, `~` prefixes are stripped before relay calls.
+
+### Added
+- 5 unit tests for handle prefix stripping (SEND-PREFIX-001..005)
+
 ## 2.3.0 — 2026-02-26
 
 ### Added

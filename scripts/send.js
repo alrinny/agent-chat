@@ -224,7 +224,8 @@ switch (command) {
   }
 
   case 'send': {
-    const [to, ...messageParts] = args;
+    const [rawTo, ...messageParts] = args;
+    const to = rawTo.replace(/^[@#~]/, ''); // strip handle prefix before relay calls
     const message = messageParts.join(' ');
     if (!to || !message) { console.error('Usage: send.js send <handle> "message"'); process.exit(1); }
 
