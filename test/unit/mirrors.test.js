@@ -40,12 +40,12 @@ function loadMirrors(dataDir, direction, handle) {
       const bucket = direction === 'outbound' ? m.outbound : m.inbound;
       if (!bucket) return [];
       if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
-      const key = handle ? handle.replace(/^@/, '') : null;
-      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+      const key = handle ? handle.replace(/^[@#~]/, '') : null;
+      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || (key && bucket[`#${key}`]) || (key && bucket[`~${key}`]) || bucket['*'];
       return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
     }
-    const key = handle ? handle.replace(/^@/, '') : null;
-    const entry = (key && m[key]) || (key && m[`@${key}`]) || m['*'];
+    const key = handle ? handle.replace(/^[@#~]/, '') : null;
+    const entry = (key && m[key]) || (key && m[`@${key}`]) || (key && m[`#${key}`]) || (key && m[`~${key}`]) || m['*'];
     if (!entry) return [];
     if (Array.isArray(entry)) return entry.filter(t => t && t.chatId);
     const targets = direction === 'outbound' ? entry.outbound : entry.inbound;
@@ -551,6 +551,35 @@ describe('mirror format detection edge cases', () => {
     // Old format: m.inbound = [{chatId}] is an array → returned as-is for any handle
     const result = loadMirrors(dir, 'inbound', 'anyone');
     assert.equal(result.length, 1); // works but for wrong reason — it's the array itself
+  });
+
+  it('MR-045: config #clawns matches relay bare "clawns"', () => {
+    const dir = join(BASE, 'mr45');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      mirrors: { '#clawns': [{ chatId: '-100111' }] }
+    }));
+    // Relay sends bare 'clawns', config has '#clawns' — must match
+    assert.equal(loadMirrors(dir, 'inbound', 'clawns').length, 1);
+    assert.equal(loadMirrors(dir, 'inbound', 'clawns')[0].chatId, '-100111');
+  });
+
+  it('MR-046: config "clawns" matches relay bare "clawns"', () => {
+    const dir = join(BASE, 'mr46');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      mirrors: { 'clawns': [{ chatId: '-100111' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'clawns').length, 1);
+  });
+
+  it('MR-047: config "@claudia" matches relay bare "claudia"', () => {
+    const dir = join(BASE, 'mr47');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      mirrors: { '@claudia': [{ chatId: '-100111' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia').length, 1);
   });
 
   it('MR-044: handle-first with split inbound/outbound per handle', () => {

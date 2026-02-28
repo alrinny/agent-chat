@@ -383,13 +383,13 @@ function loadMirrors(direction, handle) {
       if (!bucket) return [];
       if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
       // Old per-handle inside direction bucket
-      const key = handle ? handle.replace(/^@/, '') : null;
-      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+      const key = handle ? handle.replace(/^[@#~]/, '') : null;
+      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || (key && bucket[`#${key}`]) || (key && bucket[`~${key}`]) || bucket['*'];
       return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
     }
     // New format: handle-first → { "@claudia": [...] } or { "@claudia": { inbound: [...], outbound: [...] } }
-    const key = handle ? handle.replace(/^@/, '') : null;
-    const entry = (key && m[key]) || (key && m[`@${key}`]) || m['*'];
+    const key = handle ? handle.replace(/^[@#~]/, '') : null;
+    const entry = (key && m[key]) || (key && m[`@${key}`]) || (key && m[`#${key}`]) || (key && m[`~${key}`]) || m['*'];
     if (!entry) return [];
     // Simple: array → both directions
     if (Array.isArray(entry)) return entry.filter(t => t && t.chatId);
