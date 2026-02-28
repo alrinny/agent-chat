@@ -358,37 +358,50 @@ async function scanGuardrail(text, messageId = null) {
 
 // --- Mirrors ---
 // Send a copy of text to all configured mirror targets (best-effort, no buttons).
-// Mirrors are read from telegram.json: { "mirrors": [{ "chatId": "...", "threadId": 123 }] }
+// Mirrors are read from telegram.json.
+// mirrorFormat: "symmetric" → unified "💬 @from → @to:\n\ntext" format
+//              "raw" or absent → forwards text as-is
+
+function loadMirrorConfig() {
+  try {
+    const dataFile = join(DATA_DIR, 'telegram.json');
+    return JSON.parse(readFileSync(dataFile, 'utf8'));
+  } catch { return {}; }
+}
 
 function loadMirrors(direction, handle) {
   try {
-    const dataFile = join(DATA_DIR, 'telegram.json');
-    const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+    const data = loadMirrorConfig();
     const m = data.mirrors;
     if (!m) return [];
-    // Pick direction bucket (or fall back to flat legacy)
     const bucket = (m.inbound || m.outbound)
       ? (direction === 'outbound' ? m.outbound : m.inbound)
       : m;
     if (!bucket) return [];
-    // If bucket is an array → legacy flat format (all handles)
     if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
-    // Bucket is an object → per-handle map
-    // Normalize handle: strip leading @ for matching
     const key = handle ? handle.replace(/^@/, '') : null;
     const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
     return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
   } catch { return []; }
 }
 
-async function sendMirrors(text, direction = 'inbound', handle = null) {
+function formatMirrorText(text, opts) {
+  const config = loadMirrorConfig();
+  if (config.mirrorFormat !== 'symmetric' || !opts) return text;
+  const { from, to, plaintext } = opts;
+  if (!from || !to || !plaintext) return text;
+  return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandle(to))}</b>:\n\n${escapeHtml(plaintext)}`;
+}
+
+async function sendMirrors(text, direction = 'inbound', handle = null, symmetricOpts = null) {
   const tg = loadTelegramConfig();
   if (!tg) return;
   const mirrors = loadMirrors(direction, handle);
   if (!mirrors.length) return;
+  const finalText = formatMirrorText(text, symmetricOpts);
   for (const mirror of mirrors) {
     try {
-      const payload = { chat_id: mirror.chatId, text, parse_mode: 'HTML', disable_notification: true };
+      const payload = { chat_id: mirror.chatId, text: finalText, parse_mode: 'HTML', disable_notification: true };
       if (mirror.threadId) payload.message_thread_id = mirror.threadId;
       await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
         method: 'POST',
@@ -430,7 +443,7 @@ async function sendTelegram(text, buttons = null, opts = {}) {
   }
 
   // Mirror inbound text to configured targets (skip buttons, system messages, and flagged content)
-  if (!buttons && !opts.noMirror) await sendMirrors(text, 'inbound', opts.handle);
+  if (!buttons && !opts.noMirror) await sendMirrors(text, 'inbound', opts.handle, opts.symmetric);
 }
 
 function deliverFallback(text, buttons = null) {
@@ -675,13 +688,15 @@ async function handleMessage(msg, opts = {}) {
           ? `Reply to ${fmtHandle(channel, 'group')}: node ${SEND_JS_PATH} send ${channel} "your reply"\nReply to ${fmtHandle(msg.from)} privately: node ${SEND_JS_PATH} send ${msg.from} "your reply"`
           : `Reply with: node ${SEND_JS_PATH} send ${msg.from} "your reply"`;
 
+      const mirrorOpts = { handle: channel || msg.from, symmetric: { from: msg.from, to: channel || handle, plaintext } };
+
       if (UNIFIED_CHANNEL) {
         // Unified: single channel for human + AI. Always include hint so AI knows how to respond.
         const hintLine = `\n\n<i>${escapeHtml(hint)}</i>`;
         await sendTelegram(
           `${warningLine}${header}\n\n${escapeHtml(plaintext)}${hintLine}`,
           buttons,
-          { handle: channel || msg.from }
+          mirrorOpts
         );
         if (isFirst) {
           try { writeFileSync(firstDeliveryMarker, new Date().toISOString()); } catch {}
@@ -691,7 +706,7 @@ async function handleMessage(msg, opts = {}) {
         await sendTelegram(
           `${warningLine}${header}\n\n${escapeHtml(plaintext)}`,
           buttons,
-          { handle: channel || msg.from }
+          mirrorOpts
         );
 
         if (aiExcluded) {

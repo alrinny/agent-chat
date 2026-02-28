@@ -57,9 +57,11 @@ async function sendEcho(handle, to, message, toType = 'personal') {
 
   // Mirror outbound echo to configured targets
   const mirrors = loadMirrors('outbound', to);
+  if (!mirrors.length) return;
+  const mirrorText = formatMirrorText(text, { from: handle, to, plaintext: message });
   for (const mirror of mirrors) {
     try {
-      const mirrorBody = { chat_id: mirror.chatId, text, parse_mode: 'HTML', disable_notification: true };
+      const mirrorBody = { chat_id: mirror.chatId, text: mirrorText, parse_mode: 'HTML', disable_notification: true };
       if (mirror.threadId) mirrorBody.message_thread_id = mirror.threadId;
       await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -69,10 +71,16 @@ async function sendEcho(handle, to, message, toType = 'personal') {
   }
 }
 
-function loadMirrors(direction, handle) {
+function loadMirrorConfig() {
   try {
     const dataFile = join(DATA_DIR, 'telegram.json');
-    const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+    return JSON.parse(readFileSync(dataFile, 'utf8'));
+  } catch { return {}; }
+}
+
+function loadMirrors(direction, handle) {
+  try {
+    const data = loadMirrorConfig();
     const m = data.mirrors;
     if (!m) return [];
     const bucket = (m.inbound || m.outbound)
@@ -84,6 +92,15 @@ function loadMirrors(direction, handle) {
     const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
     return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
   } catch { return []; }
+}
+
+function formatMirrorText(text, opts) {
+  const config = loadMirrorConfig();
+  if (config.mirrorFormat !== 'symmetric' || !opts) return text;
+  const { from, to, plaintext } = opts;
+  if (!from || !to || !plaintext) return text;
+  const toType = inferHandleType(to);
+  return `💬 <b>${escapeHtml(formatHandle(from))} → ${escapeHtml(formatHandle(to, toType))}</b>:\n\n${escapeHtml(plaintext)}`;
 }
 
 function escapeHtml(s) {

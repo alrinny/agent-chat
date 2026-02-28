@@ -1,28 +1,38 @@
 /**
- * Unit tests for mirror configuration loading.
- * Tests: MR-001..012
+ * Unit tests for mirror configuration and formatting.
+ * Tests: MR-001..027
  *
- * loadMirrors(direction) reads from telegram.json and returns an array
+ * loadMirrors(direction, handle) reads from telegram.json and returns an array
  * of mirror targets for the given direction ('inbound' or 'outbound').
  *
- * Supports two formats:
- *   - New: { "mirrors": { "inbound": [...], "outbound": [...] } }
- *   - Legacy: { "mirrors": [...] } (used for both directions)
+ * formatMirrorText(dataDir, text, opts) applies symmetric formatting when
+ * mirrorFormat: "symmetric" is set in telegram.json.
+ *
+ * Supports formats:
+ *   - Per-handle: { "mirrors": { "inbound": { "@handle": [...] } } }
+ *   - Wildcard:   { "mirrors": { "inbound": { "*": [...] } } }
+ *   - Legacy:     { "mirrors": [...] } (used for both directions)
  */
 
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, rmSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 const BASE = join(tmpdir(), `mirrors-${Date.now()}`);
 
-// Replicate loadMirrors logic exactly from ws-daemon.js / send.js
-function loadMirrors(dataDir, direction, handle) {
+// Replicate loadMirrorConfig / loadMirrors / formatMirrorText from source
+function loadMirrorConfig(dataDir) {
   try {
     const dataFile = join(dataDir, 'telegram.json');
-    const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+    return JSON.parse(readFileSync(dataFile, 'utf8'));
+  } catch { return {}; }
+}
+
+function loadMirrors(dataDir, direction, handle) {
+  try {
+    const data = loadMirrorConfig(dataDir);
     const m = data.mirrors;
     if (!m) return [];
     const bucket = (m.inbound || m.outbound)
@@ -34,6 +44,25 @@ function loadMirrors(dataDir, direction, handle) {
     const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
     return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
   } catch { return []; }
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function fmtHandle(name) {
+  if (!name) return '???';
+  if (name.startsWith('#')) return name;
+  if (name.startsWith('@')) return name;
+  return `@${name}`;
+}
+
+function formatMirrorText(dataDir, text, opts) {
+  const config = loadMirrorConfig(dataDir);
+  if (config.mirrorFormat !== 'symmetric' || !opts) return text;
+  const { from, to, plaintext } = opts;
+  if (!from || !to || !plaintext) return text;
+  return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandle(to))}</b>:\n\n${escapeHtml(plaintext)}`;
 }
 
 before(() => {
@@ -294,5 +323,74 @@ describe('mirror config loading', () => {
     }));
     assert.equal(loadMirrors(dir, 'outbound', 'claudia')[0].chatId, '-100111');
     assert.equal(loadMirrors(dir, 'inbound', 'claudia')[0].chatId, '-100222');
+  });
+});
+
+// --- Symmetric format tests ---
+
+describe('mirror symmetric format', () => {
+
+  it('MR-022: symmetric format — basic from → to', () => {
+    const dir = join(BASE, 'mr22');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123', mirrorFormat: 'symmetric', mirrors: { inbound: { '*': [{ chatId: '-100' }] } }
+    }));
+    const result = formatMirrorText(dir, 'original html', { from: 'claudia', to: 'rinny', plaintext: 'hello!' });
+    assert.equal(result, '💬 <b>@claudia → @rinny</b>:\n\nhello!');
+  });
+
+  it('MR-023: symmetric format — escapes HTML in plaintext', () => {
+    const dir = join(BASE, 'mr23');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123', mirrorFormat: 'symmetric'
+    }));
+    const result = formatMirrorText(dir, 'x', { from: 'claudia', to: 'rinny', plaintext: '<script>alert("xss")</script>' });
+    assert.ok(result.includes('&lt;script&gt;'));
+    assert.ok(!result.includes('<script>'));
+  });
+
+  it('MR-024: symmetric format — preserves group handle #', () => {
+    const dir = join(BASE, 'mr24');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123', mirrorFormat: 'symmetric'
+    }));
+    const result = formatMirrorText(dir, 'x', { from: 'claudia', to: '#clawns', plaintext: 'hi group' });
+    assert.equal(result, '💬 <b>@claudia → #clawns</b>:\n\nhi group');
+  });
+
+  it('MR-025: no mirrorFormat — returns original text', () => {
+    const dir = join(BASE, 'mr25');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123', mirrors: { inbound: { '*': [{ chatId: '-100' }] } }
+    }));
+    const original = '📨 <b>@claudia</b>:\n\nhello';
+    const result = formatMirrorText(dir, original, { from: 'claudia', to: 'rinny', plaintext: 'hello' });
+    assert.equal(result, original);
+  });
+
+  it('MR-026: mirrorFormat raw — returns original text', () => {
+    const dir = join(BASE, 'mr26');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123', mirrorFormat: 'raw'
+    }));
+    const original = '📤 <b>@rinny → @claudia</b>:\n\nhello';
+    const result = formatMirrorText(dir, original, { from: 'rinny', to: 'claudia', plaintext: 'hello' });
+    assert.equal(result, original);
+  });
+
+  it('MR-027: symmetric format — missing opts returns original', () => {
+    const dir = join(BASE, 'mr27');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123', mirrorFormat: 'symmetric'
+    }));
+    const original = 'some text';
+    assert.equal(formatMirrorText(dir, original, null), original);
+    assert.equal(formatMirrorText(dir, original, { from: null, to: 'rinny', plaintext: 'hi' }), original);
   });
 });
