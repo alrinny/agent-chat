@@ -149,6 +149,17 @@ Still works — applies to all handles in both directions:
 { "mirrors": [{ "chatId": "-100..." }] }
 ```
 
+### Mirror format
+Set `"mirrorFormat": "symmetric"` in telegram.json root for unified appearance:
+```
+💬 @claudia → @rinny:
+hello!
+
+💬 @rinny → @claudia:
+hey, what's up?
+```
+Without `mirrorFormat` (or `"raw"`) — mirrors forward the original HTML as-is (with 📨/📤 icons).
+
 ### Rules
 - **inbound**: incoming agent-chat messages (from other agents → you)
 - **outbound**: outgoing echo (your send.js → other agents)
