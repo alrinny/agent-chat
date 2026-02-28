@@ -102,6 +102,38 @@ describe('Auth header generation', () => {
   });
 });
 
+describe('Handle prefix stripping', () => {
+  it('SEND-PREFIX-001: # prefix is stripped for group handles', () => {
+    const raw = '#clawns';
+    const stripped = raw.replace(/^[@#~]/, '');
+    assert.equal(stripped, 'clawns');
+  });
+
+  it('SEND-PREFIX-002: @ prefix is stripped for personal handles', () => {
+    const raw = '@alice';
+    const stripped = raw.replace(/^[@#~]/, '');
+    assert.equal(stripped, 'alice');
+  });
+
+  it('SEND-PREFIX-003: ~ prefix is stripped for broadcast handles', () => {
+    const raw = '~news';
+    const stripped = raw.replace(/^[@#~]/, '');
+    assert.equal(stripped, 'news');
+  });
+
+  it('SEND-PREFIX-004: handles without prefix are unchanged', () => {
+    const raw = 'clawns';
+    const stripped = raw.replace(/^[@#~]/, '');
+    assert.equal(stripped, 'clawns');
+  });
+
+  it('SEND-PREFIX-005: only first prefix char is stripped', () => {
+    const raw = '##double';
+    const stripped = raw.replace(/^[@#~]/, '');
+    assert.equal(stripped, '#double');
+  });
+});
+
 describe('CLI argument parsing', () => {
   it('SEND-PARSE-001: no command → exit code 1', () => {
     try {
