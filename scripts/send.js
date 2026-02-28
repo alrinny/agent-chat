@@ -54,6 +54,36 @@ async function sendEcho(handle, to, message, toType = 'personal') {
       body: JSON.stringify(body)
     });
   } catch { /* silent — echo is best-effort */ }
+
+  // Mirror outbound echo to configured targets
+  const mirrors = loadMirrors('outbound', to);
+  for (const mirror of mirrors) {
+    try {
+      const mirrorBody = { chat_id: mirror.chatId, text, parse_mode: 'HTML', disable_notification: true };
+      if (mirror.threadId) mirrorBody.message_thread_id = mirror.threadId;
+      await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(mirrorBody)
+      });
+    } catch { /* silent — mirror is best-effort */ }
+  }
+}
+
+function loadMirrors(direction, handle) {
+  try {
+    const dataFile = join(DATA_DIR, 'telegram.json');
+    const data = JSON.parse(readFileSync(dataFile, 'utf8'));
+    const m = data.mirrors;
+    if (!m) return [];
+    const bucket = (m.inbound || m.outbound)
+      ? (direction === 'outbound' ? m.outbound : m.inbound)
+      : m;
+    if (!bucket) return [];
+    if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
+    const key = handle ? handle.replace(/^@/, '') : null;
+    const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+    return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
+  } catch { return []; }
 }
 
 function escapeHtml(s) {
