@@ -64,9 +64,8 @@ function fmtHandle(name) {
   return `@${name}`;
 }
 
-function formatMirrorText(dataDir, text, opts) {
-  const config = loadMirrorConfig(dataDir);
-  if (config.mirrorFormat !== 'symmetric' || !opts) return text;
+function formatMirrorText(text, mirror, opts) {
+  if (mirror.format !== 'symmetric' || !opts) return text;
   const { from, to, plaintext } = opts;
   if (!from || !to || !plaintext) return text;
   return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandle(to))}</b>:\n\n${escapeHtml(plaintext)}`;
@@ -446,67 +445,49 @@ describe('mirror handle-first config', () => {
 
 describe('mirror symmetric format', () => {
 
+  const sym = { chatId: '-100', format: 'symmetric' };
+  const raw = { chatId: '-100' };
+  const rawExplicit = { chatId: '-100', format: 'raw' };
+
   it('MR-022: symmetric format — basic from → to', () => {
-    const dir = join(BASE, 'mr22');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
-      chatId: '123', mirrorFormat: 'symmetric', mirrors: { inbound: { '*': [{ chatId: '-100' }] } }
-    }));
-    const result = formatMirrorText(dir, 'original html', { from: 'claudia', to: 'rinny', plaintext: 'hello!' });
+    const result = formatMirrorText('original html', sym, { from: 'claudia', to: 'rinny', plaintext: 'hello!' });
     assert.equal(result, '💬 <b>@claudia → @rinny</b>:\n\nhello!');
   });
 
   it('MR-023: symmetric format — escapes HTML in plaintext', () => {
-    const dir = join(BASE, 'mr23');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
-      chatId: '123', mirrorFormat: 'symmetric'
-    }));
-    const result = formatMirrorText(dir, 'x', { from: 'claudia', to: 'rinny', plaintext: '<script>alert("xss")</script>' });
+    const result = formatMirrorText('x', sym, { from: 'claudia', to: 'rinny', plaintext: '<script>alert("xss")</script>' });
     assert.ok(result.includes('&lt;script&gt;'));
     assert.ok(!result.includes('<script>'));
   });
 
   it('MR-024: symmetric format — preserves group handle #', () => {
-    const dir = join(BASE, 'mr24');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
-      chatId: '123', mirrorFormat: 'symmetric'
-    }));
-    const result = formatMirrorText(dir, 'x', { from: 'claudia', to: '#clawns', plaintext: 'hi group' });
+    const result = formatMirrorText('x', sym, { from: 'claudia', to: '#clawns', plaintext: 'hi group' });
     assert.equal(result, '💬 <b>@claudia → #clawns</b>:\n\nhi group');
   });
 
-  it('MR-025: no mirrorFormat — returns original text', () => {
-    const dir = join(BASE, 'mr25');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
-      chatId: '123', mirrors: { inbound: { '*': [{ chatId: '-100' }] } }
-    }));
+  it('MR-025: no format — returns original text', () => {
     const original = '📨 <b>@claudia</b>:\n\nhello';
-    const result = formatMirrorText(dir, original, { from: 'claudia', to: 'rinny', plaintext: 'hello' });
+    const result = formatMirrorText(original, raw, { from: 'claudia', to: 'rinny', plaintext: 'hello' });
     assert.equal(result, original);
   });
 
-  it('MR-026: mirrorFormat raw — returns original text', () => {
-    const dir = join(BASE, 'mr26');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
-      chatId: '123', mirrorFormat: 'raw'
-    }));
+  it('MR-026: format raw — returns original text', () => {
     const original = '📤 <b>@rinny → @claudia</b>:\n\nhello';
-    const result = formatMirrorText(dir, original, { from: 'rinny', to: 'claudia', plaintext: 'hello' });
+    const result = formatMirrorText(original, rawExplicit, { from: 'rinny', to: 'claudia', plaintext: 'hello' });
     assert.equal(result, original);
   });
 
   it('MR-027: symmetric format — missing opts returns original', () => {
-    const dir = join(BASE, 'mr27');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
-      chatId: '123', mirrorFormat: 'symmetric'
-    }));
     const original = 'some text';
-    assert.equal(formatMirrorText(dir, original, null), original);
-    assert.equal(formatMirrorText(dir, original, { from: null, to: 'rinny', plaintext: 'hi' }), original);
+    assert.equal(formatMirrorText(original, sym, null), original);
+    assert.equal(formatMirrorText(original, sym, { from: null, to: 'rinny', plaintext: 'hi' }), original);
+  });
+
+  it('MR-037: format on target — mixed targets different formats', () => {
+    const text = '📨 <b>@claudia</b>:\n\nhello';
+    const symResult = formatMirrorText(text, sym, { from: 'claudia', to: 'rinny', plaintext: 'hello' });
+    const rawResult = formatMirrorText(text, raw, { from: 'claudia', to: 'rinny', plaintext: 'hello' });
+    assert.equal(symResult, '💬 <b>@claudia → @rinny</b>:\n\nhello');
+    assert.equal(rawResult, text);
   });
 });

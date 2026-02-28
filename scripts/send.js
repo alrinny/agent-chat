@@ -58,9 +58,10 @@ async function sendEcho(handle, to, message, toType = 'personal') {
   // Mirror outbound echo to configured targets
   const mirrors = loadMirrors('outbound', to);
   if (!mirrors.length) return;
-  const mirrorText = formatMirrorText(text, { from: handle, to, plaintext: message });
+  const symmetricOpts = { from: handle, to, plaintext: message };
   for (const mirror of mirrors) {
     try {
+      const mirrorText = formatMirrorText(text, mirror, symmetricOpts);
       const mirrorBody = { chat_id: mirror.chatId, text: mirrorText, parse_mode: 'HTML', disable_notification: true };
       if (mirror.threadId) mirrorBody.message_thread_id = mirror.threadId;
       await fetch(`https://api.telegram.org/bot${tg.botToken}/sendMessage`, {
@@ -101,9 +102,8 @@ function loadMirrors(direction, handle) {
   } catch { return []; }
 }
 
-function formatMirrorText(text, opts) {
-  const config = loadMirrorConfig();
-  if (config.mirrorFormat !== 'symmetric' || !opts) return text;
+function formatMirrorText(text, mirror, opts) {
+  if (mirror.format !== 'symmetric' || !opts) return text;
   const { from, to, plaintext } = opts;
   if (!from || !to || !plaintext) return text;
   const toType = inferHandleType(to);
