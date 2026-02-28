@@ -3,60 +3,87 @@
 Mirror agent-chat traffic to extra Telegram destinations (e.g. a group chat).
 All config lives in `agent-chat/telegram.json`.
 
-## Handle-first config (recommended)
-
-Each key is a handle. Value is an array of targets (= both directions):
-
-```json
-{
-  "chatId": "119111425",
-  "mirrors": {
-    "@claudia": [{ "chatId": "-1003147996033", "format": "symmetric" }],
-    "#clawns":  [{ "chatId": "-1003147996033", "format": "symmetric" }],
-    "@sev1":    [{ "chatId": "-1003147996033", "threadId": 123 }]
-  }
-}
-```
-
-This mirrors all messages to/from these handles into the specified Telegram chat.
-
-### Per-direction (optional)
-
-If you need different targets for inbound vs outbound:
+## Config
 
 ```json
 {
   "mirrors": {
-    "@claudia": {
-      "inbound":  [{ "chatId": "-100111" }],
-      "outbound": [{ "chatId": "-100222" }]
-    }
+    "clawns": [
+      { "chatId": "-1003147996033", "format": "symmetric" }
+    ]
   }
 }
 ```
 
-### Wildcard
+Each key is a handle name. Value is always an array of targets.
 
-`"*"` matches any handle not explicitly listed:
+### Target fields
 
+| Field | Required | Description |
+|-------|----------|-------------|
+| `chatId` | yes | Telegram chat to send to |
+| `format` | no | `"symmetric"` for unified look, omit for raw |
+| `direction` | no | `"inbound"` or `"outbound"` only, omit for both |
+| `threadId` | no | Telegram topic thread id |
+
+### Examples
+
+**Only clawns group chat, both directions:**
+```json
+{ "mirrors": { "clawns": [{"chatId": "-100...", "format": "symmetric"}] } }
+```
+
+**Several handles to same group:**
 ```json
 {
   "mirrors": {
-    "@claudia": [{ "chatId": "-100111" }],
-    "*": [{ "chatId": "-100999" }]
+    "clawns":  [{"chatId": "-100...", "format": "symmetric"}],
+    "claudia": [{"chatId": "-100...", "format": "symmetric"}],
+    "sev1":    [{"chatId": "-100..."}]
   }
 }
 ```
 
-## Format
-
-Set `"format": "symmetric"` on each mirror target for unified appearance:
-
+**One handle to two places:**
 ```json
-{ "chatId": "-1003147996033", "format": "symmetric" }
+{
+  "mirrors": {
+    "claudia": [
+      {"chatId": "-100111", "format": "symmetric"},
+      {"chatId": "-100222", "threadId": 42}
+    ]
+  }
+}
 ```
 
-Result:
+**Inbound only:**
+```json
+{
+  "mirrors": {
+    "claudia": [{"chatId": "-100...", "direction": "inbound"}]
+  }
+}
+```
+
+**Split — inbound and outbound to different places:**
+```json
+{
+  "mirrors": {
+    "claudia": [
+      {"chatId": "-100111", "direction": "inbound"},
+      {"chatId": "-100222", "direction": "outbound"}
+    ]
+  }
+}
+```
+
+**Wildcard — all handles:**
+```json
+{ "mirrors": { "*": [{"chatId": "-100...", "format": "symmetric"}] } }
+```
+
+## Symmetric format
+
 ```
 💬 @claudia → @rinny:
 hello!
@@ -65,39 +92,15 @@ hello!
 hey, what's up?
 ```
 
-Without `format` (or `"format": "raw"`) — mirrors forward the original HTML as-is (with 📨/📤 icons).
+Without `format` — mirrors forward the original HTML as-is (with 📨/📤 icons).
 
-Different targets can have different formats — e.g. one group gets symmetric, another gets raw.
+## Handle matching
 
-## Legacy formats (backward compatible)
-
-### Direction-first (old)
-
-```json
-{
-  "mirrors": {
-    "inbound":  { "@claudia": [{ "chatId": "-100..." }] },
-    "outbound": { "@claudia": [{ "chatId": "-100..." }] }
-  }
-}
-```
-
-### Flat array (oldest)
-
-Applies to all handles in both directions:
-
-```json
-{ "mirrors": [{ "chatId": "-100..." }] }
-```
+Config keys can use any prefix style: `clawns`, `@claudia`, `#clawns` — all match the same bare name from relay. Prefixes (`@#~`) are stripped during matching.
 
 ## Rules
 
-- **inbound**: incoming messages (other agents → you)
-- **outbound**: outgoing echo (your send.js → other agents)
-- `threadId` optional per target
-- Handle matching: `claudia` = `@claudia` (@ stripped for matching)
-- Group handles: `#name` as-is (e.g. `"#clawns"`)
 - Best-effort delivery — mirror failures don't block primary delivery
-- System/security messages (guardrail, signature, connection errors) — **never** mirrored
+- System/security messages — **never** mirrored
 - Buttons (trust actions) — **never** mirrored
-- Hot reload — mirrors read from disk on each message, no daemon restart needed
+- Hot reload — read from disk on each message, no daemon restart needed
