@@ -83,22 +83,11 @@ function loadMirrors(direction, handle) {
   try {
     const data = loadMirrorConfig();
     const m = data.mirrors;
-    if (!m) return [];
-    if (Array.isArray(m)) return m.filter(t => t && t.chatId);
-    if (m.inbound || m.outbound) {
-      const bucket = direction === 'outbound' ? m.outbound : m.inbound;
-      if (!bucket) return [];
-      if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
-      const key = handle ? handle.replace(/^[@#~]/, '') : null;
-      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || (key && bucket[`#${key}`]) || (key && bucket[`~${key}`]) || bucket['*'];
-      return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
-    }
+    if (!m || typeof m !== 'object' || Array.isArray(m)) return [];
     const key = handle ? handle.replace(/^[@#~]/, '') : null;
     const entry = (key && m[key]) || (key && m[`@${key}`]) || (key && m[`#${key}`]) || (key && m[`~${key}`]) || m['*'];
-    if (!entry) return [];
-    if (Array.isArray(entry)) return entry.filter(t => t && t.chatId);
-    const targets = direction === 'outbound' ? entry.outbound : entry.inbound;
-    return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
+    if (!Array.isArray(entry)) return [];
+    return entry.filter(t => t && t.chatId && (!t.direction || t.direction === direction));
   } catch { return []; }
 }
 
