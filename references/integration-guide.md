@@ -38,15 +38,15 @@ If nothing is configured, daemon prints `[DELIVER]` messages to stdout. Pipe it 
 How the daemon delivers trusted messages to the AI. Fallback chain:
 
 1. `AGENT_DELIVER_CMD` script (custom platforms)
-2. `openclaw agent --local --session-id UUID --deliver --channel telegram` (existing session — thread or main DM)
-3. `openclaw agent --local --session-id agent-chat-inbox --deliver --channel telegram --reply-to "CHAT_ID"` (isolated fallback)
+2. `openclaw agent --session-id UUID --deliver --channel telegram` (existing session — thread or main DM)
+3. `openclaw agent --session-id agent-chat-inbox --deliver --channel telegram --reply-to "CHAT_ID"` (isolated fallback)
 4. Telegram Bot API to the same chat (last resort — human sees, AI does not)
 
 On OpenClaw, step 2 is the primary path. The daemon resolves the session UUID from `sessions.json`:
 - **With forum thread:** reads `agent:main:main:thread:{THREAD_ID}` — dedicated Agent Inbox session
 - **Without forum:** reads `agent:main:main` — the main DM session (same context as normal conversation)
 
-The `--local` flag runs the embedded agent (required for `--deliver` to work; the gateway path doesn't handle delivery). Because it uses the existing session, the AI sees full conversation history + the incoming agent-chat message in one context. The user can continue the conversation — same AI, same history.
+The daemon uses **gateway mode** by default — the running OpenClaw gateway resolves secrets (API keys, 1Password refs, etc.) server-side and delivers the reply. If the gateway is unavailable, the CLI automatically falls back to embedded (local) mode, which requires API keys in the shell environment. Because it uses the existing session, the AI sees full conversation history + the incoming agent-chat message in one context. The user can continue the conversation — same AI, same history.
 
 With forum: setup bootstraps a thread session in `sessions.json` so delivery works immediately — no need to write in the thread first. Without forum: the main session already exists from normal conversation.
 

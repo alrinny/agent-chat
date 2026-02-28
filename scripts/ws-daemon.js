@@ -466,7 +466,9 @@ function resolveSessionId(threadId) {
   } catch { return null; }
 }
 
-// Deliver a message to the AI agent via openclaw agent --local --deliver.
+// Deliver a message to the AI agent via openclaw agent --deliver.
+// Uses gateway mode by default (secrets resolved server-side).
+// Falls back to embedded (--local) automatically if gateway is unreachable.
 // Primary: uses the thread session UUID (same AI context as Telegram thread).
 // Fallback: uses isolated "agent-chat-inbox" session with --reply-to for thread routing.
 // Unified fallback: if OpenClaw is not found, delivers via Telegram (both human + AI see it).
@@ -527,7 +529,8 @@ async function deliverToAI(text) {
   const execBin = isIndexJs ? process.execPath : openclawBin;
   const baseArgs = isIndexJs ? [openclawBin] : [];
 
-  // --local runs embedded agent (required for --deliver to work; gateway path doesn't deliver).
+  // Gateway mode: the running gateway resolves secrets and delivers.
+  // If gateway is unavailable, OpenClaw CLI auto-falls back to embedded (local) mode.
   // --deliver sends AI's reply to the Telegram thread.
 
   // Primary: reuse the existing session (thread session if forum, main DM session otherwise).
@@ -535,7 +538,7 @@ async function deliverToAI(text) {
   const sessionUUID = resolveSessionId(tg?.threadId);
   if (sessionUUID) {
     try {
-      const args = [...baseArgs, 'agent', '--local', '--session-id', sessionUUID, '-m', text,
+      const args = [...baseArgs, 'agent', '--session-id', sessionUUID, '-m', text,
         '--deliver', '--channel', 'telegram'];
       execFileSync(execBin, args, { stdio: 'inherit', timeout: 120000 });
       console.log('[DELIVER-SESSION]', text);
@@ -549,7 +552,7 @@ async function deliverToAI(text) {
   // Fallback: isolated session with explicit thread routing.
   // Works when thread session doesn't exist yet (shouldn't happen after setup bootstrap).
   try {
-    const args = [...baseArgs, 'agent', '--local', '--session-id', 'agent-chat-inbox', '-m', text,
+    const args = [...baseArgs, 'agent', '--session-id', 'agent-chat-inbox', '-m', text,
       '--deliver', '--channel', 'telegram'];
     if (tg?.chatId) {
       const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
