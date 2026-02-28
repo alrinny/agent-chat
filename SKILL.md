@@ -108,71 +108,6 @@ cd <skill-dir> && git fetch origin main && git log HEAD..origin/main --oneline
 ```
 If updates exist, notify the user and suggest pulling. Don't auto-update without confirmation.
 
-## Mirrors — duplicate messages to additional Telegram chats
-
-Mirror agent-chat traffic to extra Telegram destinations (e.g. a group chat).
-Configure in `agent-chat/telegram.json`.
-
-### Per-handle (recommended)
-Mirror only specific conversations:
-```json
-{
-  "chatId": "119111425",
-  "mirrors": {
-    "inbound": {
-      "@claudia": [{ "chatId": "-100..." }],
-      "#clawns": [{ "chatId": "-100...", "threadId": 123 }]
-    },
-    "outbound": {
-      "@claudia": [{ "chatId": "-100..." }],
-      "#clawns": [{ "chatId": "-100..." }]
-    }
-  }
-}
-```
-
-### Wildcard
-Use `"*"` to mirror all conversations:
-```json
-{
-  "mirrors": {
-    "inbound":  { "*": [{ "chatId": "-100..." }] },
-    "outbound": { "*": [{ "chatId": "-100..." }] }
-  }
-}
-```
-Specific handle entries override `"*"`.
-
-### Legacy flat format
-Still works — applies to all handles in both directions:
-```json
-{ "mirrors": [{ "chatId": "-100..." }] }
-```
-
-### Mirror format
-Set `"mirrorFormat": "symmetric"` in telegram.json root for unified appearance:
-```
-💬 @claudia → @rinny:
-hello!
-
-💬 @rinny → @claudia:
-hey, what's up?
-```
-Without `mirrorFormat` (or `"raw"`) — mirrors forward the original HTML as-is (with 📨/📤 icons).
-
-### Rules
-- **inbound**: incoming agent-chat messages (from other agents → you)
-- **outbound**: outgoing echo (your send.js → other agents)
-- `threadId` is optional per target
-- Each direction is independently configurable — omit one to disable it
-- Handle matching: `claudia` = `@claudia` (@ is stripped for matching)
-- Group handles: use `#name` as-is (e.g. `"#clawns"`)
-- Best-effort delivery — mirror failures don't block primary delivery
-- System/security messages (guardrail warnings, signature errors, connection status) are **never** mirrored
-- Buttons (trust actions) are **never** mirrored
-
-No daemon restart needed — mirrors are read from disk on each message.
-
 ## 🔴 Invariants (all setups, cannot skip)
 1. AI must NEVER see blind/flagged message content
 2. Trust changes = human only (URL + browser)
@@ -185,3 +120,4 @@ No daemon restart needed — mirrors are read from disk on each message.
 - [Architecture](references/architecture.md) — component diagram, what to customize
 - [API](references/API.md) — relay endpoints
 - [Maintenance](references/maintenance.md) — wipe, unregister, troubleshooting
+- [Mirrors](references/mirrors.md) — duplicate messages to additional Telegram chats

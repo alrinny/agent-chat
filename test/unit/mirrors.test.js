@@ -35,13 +35,20 @@ function loadMirrors(dataDir, direction, handle) {
     const data = loadMirrorConfig(dataDir);
     const m = data.mirrors;
     if (!m) return [];
-    const bucket = (m.inbound || m.outbound)
-      ? (direction === 'outbound' ? m.outbound : m.inbound)
-      : m;
-    if (!bucket) return [];
-    if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
+    if (Array.isArray(m)) return m.filter(t => t && t.chatId);
+    if (m.inbound || m.outbound) {
+      const bucket = direction === 'outbound' ? m.outbound : m.inbound;
+      if (!bucket) return [];
+      if (Array.isArray(bucket)) return bucket.filter(t => t && t.chatId);
+      const key = handle ? handle.replace(/^@/, '') : null;
+      const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+      return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
+    }
     const key = handle ? handle.replace(/^@/, '') : null;
-    const targets = (key && bucket[key]) || (key && bucket[`@${key}`]) || bucket['*'];
+    const entry = (key && m[key]) || (key && m[`@${key}`]) || m['*'];
+    if (!entry) return [];
+    if (Array.isArray(entry)) return entry.filter(t => t && t.chatId);
+    const targets = direction === 'outbound' ? entry.outbound : entry.inbound;
     return Array.isArray(targets) ? targets.filter(t => t && t.chatId) : [];
   } catch { return []; }
 }
@@ -323,6 +330,115 @@ describe('mirror config loading', () => {
     }));
     assert.equal(loadMirrors(dir, 'outbound', 'claudia')[0].chatId, '-100111');
     assert.equal(loadMirrors(dir, 'inbound', 'claudia')[0].chatId, '-100222');
+  });
+});
+
+// --- Handle-first format tests ---
+
+describe('mirror handle-first config', () => {
+
+  it('MR-028: handle-first — array = both directions', () => {
+    const dir = join(BASE, 'mr28');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '@claudia': [{ chatId: '-100111' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia').length, 1);
+    assert.equal(loadMirrors(dir, 'outbound', 'claudia').length, 1);
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia')[0].chatId, '-100111');
+  });
+
+  it('MR-029: handle-first — split inbound/outbound per handle', () => {
+    const dir = join(BASE, 'mr29');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: {
+        '@claudia': {
+          inbound: [{ chatId: '-100111' }],
+          outbound: [{ chatId: '-100222' }]
+        }
+      }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia')[0].chatId, '-100111');
+    assert.equal(loadMirrors(dir, 'outbound', 'claudia')[0].chatId, '-100222');
+  });
+
+  it('MR-030: handle-first — unmatched handle returns empty', () => {
+    const dir = join(BASE, 'mr30');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '@claudia': [{ chatId: '-100111' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'sev1').length, 0);
+  });
+
+  it('MR-031: handle-first — wildcard * fallback', () => {
+    const dir = join(BASE, 'mr31');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '*': [{ chatId: '-100999' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'anyone')[0].chatId, '-100999');
+    assert.equal(loadMirrors(dir, 'outbound', 'anyone')[0].chatId, '-100999');
+  });
+
+  it('MR-032: handle-first — specific overrides wildcard', () => {
+    const dir = join(BASE, 'mr32');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: {
+        '@claudia': [{ chatId: '-100111' }],
+        '*': [{ chatId: '-100999' }]
+      }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia')[0].chatId, '-100111');
+    assert.equal(loadMirrors(dir, 'inbound', 'sev1')[0].chatId, '-100999');
+  });
+
+  it('MR-033: handle-first — group handle #clawns', () => {
+    const dir = join(BASE, 'mr33');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '#clawns': [{ chatId: '-100111' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', '#clawns').length, 1);
+  });
+
+  it('MR-034: handle-first — split with only inbound', () => {
+    const dir = join(BASE, 'mr34');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '@claudia': { inbound: [{ chatId: '-100111' }] } }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia').length, 1);
+    assert.equal(loadMirrors(dir, 'outbound', 'claudia').length, 0);
+  });
+
+  it('MR-035: handle-first — threadId preserved', () => {
+    const dir = join(BASE, 'mr35');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '@claudia': [{ chatId: '-100111', threadId: 42 }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia')[0].threadId, 42);
+  });
+
+  it('MR-036: handle-first — multiple targets per handle', () => {
+    const dir = join(BASE, 'mr36');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'telegram.json'), JSON.stringify({
+      chatId: '123',
+      mirrors: { '@claudia': [{ chatId: '-100111' }, { chatId: '-100222' }] }
+    }));
+    assert.equal(loadMirrors(dir, 'inbound', 'claudia').length, 2);
   });
 });
 
