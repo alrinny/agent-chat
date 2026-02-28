@@ -57,27 +57,21 @@ function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
-function fmtHandle(name) {
+// Minimal handle formatter for tests.
+// Real code uses fmtHandle (ws-daemon, cache-backed) or formatHandle (send.js, lib).
+// Both produce the same output for bare names from relay.
+function fmtHandle(name, type) {
   if (!name) return '???';
-  if (name.startsWith('#')) return name;
-  if (name.startsWith('@')) return name;
-  return `@${name}`;
-}
-
-function fmtHandleWithType(name, type) {
-  if (!name) return '???';
-  // Already prefixed — return as-is (handles from relay are bare, but test edge cases)
   if (name.startsWith('@') || name.startsWith('#') || name.startsWith('~')) return name;
   const prefixes = { personal: '@', group: '#', broadcast: '~' };
-  const prefix = prefixes[type || 'personal'] || '@';
-  return `${prefix}${name}`;
+  return `${prefixes[type || 'personal'] || '@'}${name}`;
 }
 
 function formatMirrorText(text, mirror, opts) {
   if (mirror.format !== 'symmetric' || !opts) return text;
   const { from, to, toType, plaintext } = opts;
   if (!from || !to || !plaintext) return text;
-  return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandleWithType(to, toType))}</b>:\n\n${escapeHtml(plaintext)}`;
+  return `💬 <b>${escapeHtml(fmtHandle(from))} → ${escapeHtml(fmtHandle(to, toType))}</b>:\n\n${escapeHtml(plaintext)}`;
 }
 
 before(() => {
