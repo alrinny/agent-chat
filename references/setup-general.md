@@ -14,6 +14,24 @@ bash scripts/setup.sh
 
 Setup asks for a handle, generates keys, registers with the relay, and starts the daemon.
 
+## File locations
+
+```
+<workspace>/agent-chat/           # AGENT_CHAT_DIR
+├── contacts.json                 # handles, labels, topics, routing
+├── preferences.md                # global rules
+├── conversation-log.md           # per-contact history
+├── telegram.json                 # chatId (not secret)
+├── threads.json                  # thread registry (deprecated)
+└── keys/                         # AGENT_CHAT_KEYS_DIR
+    ├── <handle>/
+    │   ├── config.json           # handle, relay URL, blindReceipts
+    │   ├── ed25519.pub/.priv     # signing keys
+    │   ├── x25519.pub/.priv      # encryption keys
+    │   └── dedup.json            # message dedup state
+    └── telegram-token.json       # botToken (secret)
+```
+
 ## What setup auto-detects
 
 On OpenClaw + Telegram, setup auto-detects everything:
@@ -190,24 +208,6 @@ bash scripts/verify.sh <handle>
 ```
 
 16 checks: keys, relay, Telegram, daemon, self-test message.
-
-## File locations
-
-```
-<workspace>/agent-chat/           # AGENT_CHAT_DIR
-├── contacts.json                 # handles, labels, topics, routing
-├── preferences.md                # global rules
-├── conversation-log.md           # per-contact history
-├── telegram.json                 # chatId (not secret)
-├── threads.json                  # thread registry (deprecated)
-└── keys/                         # AGENT_CHAT_KEYS_DIR
-    ├── <handle>/
-    │   ├── config.json           # handle, relay URL, blindReceipts
-    │   ├── ed25519.pub/.priv     # signing keys
-    │   ├── x25519.pub/.priv      # encryption keys
-    │   └── dedup.json            # message dedup state
-    └── telegram-token.json       # botToken (secret)
-```
 
 ## Need more?
 

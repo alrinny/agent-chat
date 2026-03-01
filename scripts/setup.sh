@@ -295,12 +295,23 @@ THREAD_ID="${AGENT_CHAT_THREAD_ID:-}"
 # Skip auto-detect if AGENT_CHAT_DIR is explicitly set (custom/test setup)
 OPENCLAW_HOME="$HOME/.openclaw"
 OPENCLAW_CFG="$OPENCLAW_HOME/openclaw.json"
-if [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
+# Skip auto-detect for test handles - they should be isolated
+IS_TEST_HANDLE=0
+case "$HANDLE" in
+  test-*|daemon-*|dt0*|edge*|unreachable-*) IS_TEST_HANDLE=1 ;;
+esac
+
+if [ -f "$OPENCLAW_CFG" ] && [ "$IS_TEST_HANDLE" = "0" ]; then
   if [ -z "$BOT_TOKEN" ]; then
     BOT_TOKEN=$(node -e "
       try {
         const c = JSON.parse(require('fs').readFileSync('$OPENCLAW_CFG','utf8'));
         const t = c?.channels?.telegram?.botToken || c?.plugins?.entries?.telegram?.config?.botToken || '';
+        // Handle SecretRef objects gracefully
+        if (t && typeof t === 'object' && t.source) {
+          console.error('⚠️  Bot token is a SecretRef object - skipping auto-detection');
+          process.exit(0);
+        }
         if (t) process.stdout.write(t);
       } catch {}
     " 2>/dev/null || true)
@@ -323,7 +334,7 @@ if [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
 fi
 
 # Auto-detect chat_id from OpenClaw credentials (allowFrom list)
-if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
+if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ "$IS_TEST_HANDLE" = "0" ]; then
   for AF in "$OPENCLAW_HOME/credentials/telegram-allowFrom.json" "$OPENCLAW_HOME/credentials/telegram-default-allowFrom.json"; do
     if [ -f "$AF" ]; then
       CHAT_ID=$(node -e "
@@ -343,7 +354,7 @@ if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; 
 fi
 
 # Auto-detect chat_id from OpenClaw sessions
-if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ -z "${AGENT_CHAT_DIR:-}" ]; then
+if [ -z "$CHAT_ID" ] && [ -f "$OPENCLAW_CFG" ] && [ "$IS_TEST_HANDLE" = "0" ]; then
   SESSIONS_FILE="$OPENCLAW_HOME/agents/main/sessions/sessions.json"
   if [ -f "$SESSIONS_FILE" ]; then
     CHAT_ID=$(node -e "
@@ -538,6 +549,39 @@ fi
 
 if [ "$INSTALL_DAEMON" = "1" ]; then
   NODE_PATH="$(which node)"
+
+  # Check for running daemon before starting
+  DAEMON_RUNNING=0
+  if [ "$(uname)" = "Darwin" ]; then
+    # Check for LaunchAgent
+    PLIST="$HOME/Library/LaunchAgents/com.agent-chat.$HANDLE.plist"
+    if [ -f "$PLIST" ]; then
+      if launchctl list | grep -q "com.agent-chat.$HANDLE" 2>/dev/null; then
+        DAEMON_RUNNING=1
+      fi
+    fi
+  elif command -v systemctl >/dev/null 2>&1; then
+    # Check for systemd unit
+    if systemctl --user is-active --quiet "agent-chat-$HANDLE" 2>/dev/null; then
+      DAEMON_RUNNING=1
+    fi
+  fi
+
+  if [ "$DAEMON_RUNNING" = "1" ]; then
+    echo "⚠️  Daemon for @$HANDLE is already running."
+    if [ -t 0 ]; then
+      read -p "Restart daemon? (y/N): " RESTART_DAEMON
+      if [ "$RESTART_DAEMON" = "y" ] || [ "$RESTART_DAEMON" = "Y" ]; then
+        echo "🔄 Restarting daemon..."
+      else
+        echo "✅ Using existing daemon. Setup complete."
+        exit 0
+      fi
+    else
+      echo "   Stop it first or run setup.sh update to restart all daemons."
+      exit 1
+    fi
+  fi
 
   # Skip persistent daemon for test handles — run foreground only
   if echo "$HANDLE" | grep -q '^test-'; then
