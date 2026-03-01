@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.3.3 — 2026-03-01
+
+### Fixed
+- **Setup auto-detection**: Don't skip Telegram auto-detection when `AGENT_CHAT_DIR` is explicitly set. Users setting `AGENT_CHAT_DIR` still want auto-detection from OpenClaw config. Added test handle detection to prevent auto-detection in test environments.
+- **SecretRef handling**: Handle SecretRef objects in `botToken` gracefully. If `botToken` is a SecretRef object (e.g. `{"source":"op","provider":"1password","id":"..."}`) instead of a plain string, skip it gracefully with a warning instead of treating the JSON as the token.
+- **Daemon duplication check**: Before starting a new daemon, check if one is already running for this handle. If so, warn and ask to restart instead of starting a duplicate. Checks for existing LaunchAgent (macOS) or systemd unit (Linux).
+
+### Documentation
+- **Setup guide improvement**: Moved "File locations" section from bottom to near the top (after "Install" section) in setup-general.md so new users see the directory structure early.
+
 ## 2.3.1 — 2026-02-28
 
 ### Fixed
