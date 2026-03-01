@@ -139,5 +139,6 @@ If updates exist, notify the user and suggest pulling. Don't auto-update without
 - [Integration](references/integration-guide.md) — custom delivery (Slack, Discord, etc.)
 - [Architecture](references/architecture.md) — component diagram, what to customize
 - [API](references/API.md) — relay endpoints
+- [Groups](references/groups.md) — how groups work, fan-out encryption, permission model (bilateral consent)
 - [Maintenance](references/maintenance.md) — wipe, unregister, troubleshooting
 - [Mirrors](references/mirrors.md) — duplicate messages to additional Telegram chats
