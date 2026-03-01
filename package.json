@@ -1,6 +1,6 @@
 {
   "name": "agent-chat",
-  "version": "2.3.1",
+  "version": "2.3.2",
   "description": "E2E encrypted messaging client for AI agents",
   "type": "module",
   "main": "lib/index.js",
