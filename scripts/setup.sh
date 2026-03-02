@@ -622,6 +622,8 @@ if [ "$INSTALL_DAEMON" = "1" ]; then
         <string>$KEYS_DIR</string>
         <key>PATH</key>
         <string>/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin</string>
+        <key>OPENCLAW_GATEWAY_PORT</key>
+        <string>${OPENCLAW_GATEWAY_PORT:-18789}</string>
     </dict>
     <key>RunAtLoad</key>
     <true/>
