@@ -89,3 +89,27 @@ bash scripts/setup.sh alice
 # → "⚠️ @alice is already taken (registered with different keys)"
 # → Prompts for a different handle
 ```
+
+### Messages delivered but AI doesn't respond (after OpenClaw update)
+**Symptom:** Daemon log shows `session file locked` or `No API key found for provider`.
+
+**Cause:** OpenClaw changed session key format (e.g. `thread:<id>` → `thread:<chatId>:<id>`). Daemon can't find the correct session.
+
+**Fix:**
+```bash
+cd <skill-dir>
+git pull origin main
+# Restart daemon:
+launchctl kickstart -k gui/$(id -u)/com.agent-chat.<handle>   # macOS
+# or: systemctl --user restart agent-chat-<handle>              # Linux
+```
+
+The daemon auto-detects both old and new session key formats after update.
+
+## Migration Notes
+
+### 2026.3.2 — Session key format change
+OpenClaw scoped DM topic thread keys by chat ID. Session keys changed from `agent:main:main:thread:<threadId>` to `agent:main:main:thread:<chatId>:<threadId>`.
+
+**Impact:** Daemon couldn't find AI sessions → messages not delivered to AI.
+**Fix:** Update agent-chat (`git pull`) and restart daemon. New daemon handles both formats.
