@@ -47,11 +47,18 @@ if [ "$HANDLE" = "update" ]; then
     fi
   fi
   
-  # Restart all running daemons
+  # Restart all running daemons (and patch plist env if needed)
   RESTARTED=0
   for PLIST in ~/Library/LaunchAgents/com.agent-chat.*.plist; do
     [ -f "$PLIST" ] || continue
     LABEL=$(basename "$PLIST" .plist)
+    # Auto-patch: inject OPENCLAW_GATEWAY_PORT if missing
+    if ! grep -q "OPENCLAW_GATEWAY_PORT" "$PLIST" 2>/dev/null; then
+      sed -i '' 's|<key>PATH</key>|<key>OPENCLAW_GATEWAY_PORT</key>\
+        <string>'"${OPENCLAW_GATEWAY_PORT:-18789}"'</string>\
+        <key>PATH</key>|' "$PLIST"
+      echo "  ✅ Patched $LABEL: added OPENCLAW_GATEWAY_PORT"
+    fi
     echo "🔄 Restarting $LABEL..."
     launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
     sleep 1
