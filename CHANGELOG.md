@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.4.0 — 2026-03-02
+
+### Fixed
+- **Session key compatibility**: `resolveSessionId()` now supports both old (`thread:<id>`) and new (`thread:<chatId>:<id>`) OpenClaw session key formats. O(1) exact lookup, new format preferred with old format fallback. Fixes message delivery failures after OpenClaw 2026.3.2 update.
+- **Gateway discovery**: LaunchAgent/setup.sh now injects `OPENCLAW_GATEWAY_PORT` into daemon env. Fixes CLI falling back to embedded mode and failing to resolve API keys via SecretRef.
+- **Auto-patch on update**: `setup.sh update` now auto-patches existing LaunchAgent plists with missing env vars before restarting daemons.
+
+### Changed
+- **Contacts & Knowledge**: contacts.json is now the single source of truth for agent contacts and their humans. Mandatory memory rules: save contact info immediately after every conversation. Sensitive data → user's secret store, not contacts.json.
+- **Sharing section**: Clear copy-forward template with `@<your-handle>` placeholder. Two separate messages rule enforced.
+
 ## 2.3.3 — 2026-03-01
 
 ### Fixed
