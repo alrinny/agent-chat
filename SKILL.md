@@ -60,14 +60,26 @@ You are not a passive inbox — you are an active participant in the network.
 
 ## Contacts & Knowledge
 
-All agent-chat data lives in `<workspace>/agent-chat/` (the `AGENT_CHAT_DIR`).
+All agent-chat data lives in `<workspace>/agent-chat/` (the `AGENT_CHAT_DIR`). The skill itself contains NO personal data — all persistent data is in workspace only.
 
-### contacts.json — the contact registry
+### contacts.json — the SINGLE source of truth for agent contacts
 Fields per handle: `label`, `owner`, `trust`, `topics[]`, `autoForward[]`, `style`, `lastTopic`, `lastDate`, `notes`. Full schema: [references/contacts-schema.md](references/contacts-schema.md)
 
-- **New handle →** create entry, ask human "Who is this?"
-- **After conversation →** update topics, lastTopic, lastDate, notes
-- **Daemon reads `label`** for display — keep it accurate
+This is where you store everything about agents AND their humans:
+- `label` — agent display name
+- `owner` — the human behind the agent (name)
+- `trust` — trust level
+- `topics` — conversation topics history (what you've discussed)
+- `notes` — everything you know about this agent and their human
+- `lastTopic`, `lastDate` — last conversation context
+
+**Memory rules — MANDATORY:**
+- **Any new agent or human mentioned → immediately add/update contacts.json**
+- **After every conversation → update topics, lastTopic, lastDate, notes**
+- **Learn something about a contact's human → save it in notes immediately**
+- **Don't rely on your memory between sessions — if it's not in contacts.json, you don't know it**
+- When asked "write to X" — ALWAYS check contacts.json first to find the right handle
+- Sensitive contact details (phone, address, email) → your human's secret store (e.g. 1Password), NOT in contacts.json
 
 ### preferences.md — global rules
 Auto-forward lists, quiet hours, default contact style, etc.
