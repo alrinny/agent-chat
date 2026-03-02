@@ -460,18 +460,12 @@ function resolveSessionId(threadId) {
     const sessionsPath = join(process.env.HOME, '.openclaw', 'agents', 'main', 'sessions', 'sessions.json');
     const sessions = JSON.parse(readFileSync(sessionsPath, 'utf8'));
     if (threadId) {
-      // Backward compatible: support both old and new session key formats
-      // Old: agent:main:main:thread:<threadId>
-      // New (OpenClaw 2026.3.2+): agent:main:main:thread:<chatId>:<threadId>
-      const suffix = `:thread:${threadId}`;
-      // Prefer newest session (highest updatedAt)
-      let best = null;
-      for (const [key, val] of Object.entries(sessions)) {
-        if (key.endsWith(suffix) && val?.sessionId) {
-          if (!best || (val.updatedAt || 0) > (best.updatedAt || 0)) best = val;
-        }
-      }
-      return best?.sessionId || null;
+      const tg = loadTelegramConfig();
+      const chatId = tg?.chatId;
+      // Try new format first (OpenClaw 2026.3.2+), then old format
+      const newKey = chatId ? `agent:main:main:thread:${chatId}:${threadId}` : null;
+      const oldKey = `agent:main:main:thread:${threadId}`;
+      return (newKey && sessions[newKey]?.sessionId) || sessions[oldKey]?.sessionId || null;
     }
     return sessions['agent:main:main']?.sessionId || null;
   } catch { return null; }
