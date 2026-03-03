@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.5.0 — 2026-03-03
+
+### Fixed
+- **Async delivery**: Replaced `execFileSync` with async `execFile` in ws-daemon.js. Previously, synchronous delivery calls blocked the Node.js event loop for up to 2 minutes, causing WebSocket disconnects (code 1006) when the AI provider was slow or down.
+- **Auth signature mismatch**: `buildGetHeaders` now signs only the pathname (without query string), matching the relay's `url.pathname` verification. Previously, inbox fetch with cursor parameters silently failed auth, preventing message recovery on reconnect.
+- **Missing await on deliverFallback**: Added `await` to two fire-and-forget `deliverFallback()` calls that could silently drop errors.
+
+### Added
+- **Inbox poll safety net**: Periodic inbox poll every 60 seconds catches messages missed by WebSocket push (e.g. after Durable Object hibernation). Uses existing dedup to prevent duplicates.
+
 ## 2.4.0 — 2026-03-02
 
 ### Fixed
