@@ -18,7 +18,9 @@ import { formatHandle, inferHandleType } from '../lib/format.js';
 import { readFileSync, writeFileSync, existsSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, execFile as execFileCb } from 'node:child_process';
+import { promisify } from 'node:util';
+const execFileAsync = promisify(execFileCb);
 
 const handle = process.argv[2] || process.env.AGENT_CHAT_HANDLE;
 
@@ -415,7 +417,7 @@ async function sendMirrors(text, direction = 'inbound', handle = null, symmetric
 async function sendTelegram(text, buttons = null, opts = {}) {
   verbose(`sendTelegram: ${text.length} chars${buttons ? ', with buttons' : ''}${opts.noMirror ? ', noMirror' : ''}`);
   const tg = loadTelegramConfig();
-  if (!tg) return deliverFallback(text, buttons);
+  if (!tg) return await deliverFallback(text, buttons);
 
   const payload = { chat_id: tg.chatId, text, parse_mode: 'HTML' };
   if (tg.threadId) payload.message_thread_id = tg.threadId;
@@ -434,19 +436,23 @@ async function sendTelegram(text, buttons = null, opts = {}) {
     }
   } catch (err) {
     console.error('Telegram sendMessage error:', err);
-    deliverFallback(text, buttons);
+    await deliverFallback(text, buttons);
   }
 
   // Mirror inbound text to configured targets (skip buttons, system messages, and flagged content)
   if (!buttons && !opts.noMirror) await sendMirrors(text, 'inbound', opts.handle, opts.symmetric);
 }
 
-function deliverFallback(text, buttons = null) {
+async function deliverFallback(text, buttons = null) {
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
     const env = { ...process.env, AGENT_MSG: text };
     if (buttons) env.AGENT_MSG_BUTTONS = JSON.stringify(buttons);
-    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env });
+    try {
+      await execFileAsync(DELIVER_CMD, [], { env, timeout: 120000 });
+    } catch (err) {
+      console.error('deliverFallback failed:', err.message);
+    }
   } else {
     console.log('[INBOX]', text);
   }
@@ -482,7 +488,11 @@ async function deliverToAI(text) {
   verbose(`deliverToAI: ${text.length} chars`);
   if (DELIVER_CMD) {
     // SECURITY: pass text via env var, NOT shell interpolation
-    execFileSync(DELIVER_CMD, [], { stdio: 'inherit', env: { ...process.env, AGENT_MSG: text } });
+    try {
+      await execFileAsync(DELIVER_CMD, [], { env: { ...process.env, AGENT_MSG: text }, timeout: 120000 });
+    } catch (err) {
+      console.error('DELIVER_CMD failed:', err.message);
+    }
     return;
   }
 
@@ -550,7 +560,7 @@ async function deliverToAI(text) {
         const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
         args.push('--reply-to', target);
       }
-      execFileSync(execBin, args, { stdio: 'inherit', timeout: 120000 });
+      await execFileAsync(execBin, args, { timeout: 120000 });
       console.log('[DELIVER-SESSION]', text);
       return;
     } catch (err) {
@@ -568,7 +578,7 @@ async function deliverToAI(text) {
       const target = tg.threadId ? `${tg.chatId}:topic:${tg.threadId}` : String(tg.chatId);
       args.push('--reply-to', target);
     }
-    execFileSync(execBin, args, { stdio: 'inherit', timeout: 120000 });
+    await execFileAsync(execBin, args, { timeout: 120000 });
     console.log('[DELIVER-FALLBACK]', text);
     return;
   } catch (err) {
@@ -1058,6 +1068,36 @@ if (process.argv[1]?.endsWith('ws-daemon.js')) {
     // Make WS available globally for connect()
     if (typeof globalThis.WebSocket === 'undefined') globalThis.WebSocket = WS;
     connect();
+    // Periodic inbox poll as safety net — catches messages missed by WS push
+    // (e.g. after DO hibernation loses WS reference)
+    const INBOX_POLL_INTERVAL_MS = 60_000;
+    setInterval(async () => {
+      try {
+        const inboxPath = lastAckedId
+          ? `/inbox/${handle}?after=${encodeURIComponent(lastAckedId)}`
+          : `/inbox/${handle}`;
+        const { messages } = await relayGet(inboxPath);
+        if (messages?.length) {
+          let delivered = 0;
+          for (const msg of messages) {
+            const dedupKey = `${msg.id}:${msg.effectiveRead || 'unknown'}`;
+            if (!processedMessageIds.has(dedupKey)) {
+              await handleMessage({ type: msg.type || 'message', ...msg }, { queued: true });
+              delivered++;
+            }
+          }
+          if (delivered > 0) {
+            const trustedIds = messages.filter(m => m.effectiveRead === 'trusted' || m.type === 'system').map(m => m.id);
+            if (trustedIds.length > 0) {
+              await relayPost('/inbox/ack', { ids: trustedIds });
+            }
+            console.log(`[POLL-SAFETY] Delivered ${delivered} missed messages`);
+          }
+        }
+      } catch (err) {
+        verbose('Inbox poll error:', err.message);
+      }
+    }, INBOX_POLL_INTERVAL_MS);
   } else {
     console.log('⚠️ No WebSocket available (Node <21, no ws package). Install ws: npm i ws');
     pollFallback();
