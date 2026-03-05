@@ -123,7 +123,7 @@ describe('setup.sh — 409 handling', () => {
     // Use random handle to avoid 409
     const randomHandle = `test-${Date.now().toString(36)}`;
     const out = execSync(
-      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.example.com bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('setup complete'), `Expected "setup complete", got: ${out.slice(0, 300)}`);
@@ -136,12 +136,12 @@ describe('setup.sh — 409 handling', () => {
     // First register our base handle (from before() hook)
     const freshHandle = `test-${Date.now().toString(36)}`;
     execSync(
-      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.example.com bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     // Re-run with same keys — should succeed
     const out = execSync(
-      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.example.com bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${freshHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('setup complete'), `Expected "setup complete", got: ${out.slice(0, 300)}`);
@@ -183,7 +183,7 @@ describe('setup.sh — --daemon flag', () => {
     // No --daemon flag needed — it's the default now
     // AGENT_CHAT_FORCE_DAEMON=1 overrides the test-handle safety guard in setup.sh
     const out = execSync(
-      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_FORCE_DAEMON=1 AGENT_CHAT_RELAY=https://agent-chat-relay.example.com bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_CHAT_ID=123 AGENT_CHAT_FORCE_DAEMON=1 AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} 2>&1`,
       { encoding: 'utf8' }
     );
     
@@ -199,7 +199,7 @@ describe('setup.sh — --daemon flag', () => {
   it('SETUP-DAEMON-002: --no-daemon skips LaunchAgent, shows manual instructions', () => {
     const randomHandle = `test-${Date.now().toString(36)}`;
     const out = execSync(
-      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.example.com bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
+      `AGENT_CHAT_DIR="${TEST_DIR}" AGENT_CHAT_KEYS_DIR="${TEST_DIR}" AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev bash ${SCRIPT_DIR}/setup.sh ${randomHandle} --no-daemon 2>&1`,
       { encoding: 'utf8' }
     );
     assert.ok(out.includes('Start daemon:'), `Expected manual daemon instructions, got: ${out.slice(0, 300)}`);

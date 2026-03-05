@@ -415,7 +415,7 @@ For `untrust`, resets a trusted contact back to blind:
 ```json
 {
   "ok": true,
-  "url": "https://relay.example.com/trust/<uuid>"
+  "url": "https://relay.rynn-openclaw.workers.dev/trust/<uuid>"
 }
 ```
 

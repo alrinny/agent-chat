@@ -100,7 +100,7 @@ describe('Delivery routing', () => {
       try {
         const output = execSync(
           `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
-          `AGENT_CHAT_RELAY=https://agent-chat-relay.example.com ` +
+          `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
           `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt006-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
@@ -122,7 +122,7 @@ describe('Delivery routing', () => {
         execSync(
           `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" AGENT_CHAT_BOT_TOKEN=fake:token AGENT_CHAT_CHAT_ID=999 ` +
           `AGENT_CHAT_THREAD_ID=12345 ` +
-          `AGENT_CHAT_RELAY=https://agent-chat-relay.example.com ` +
+          `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
           `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} ${handle} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
@@ -139,7 +139,7 @@ describe('Delivery routing', () => {
       try {
         const output = execSync(
           `AGENT_CHAT_DIR="${dir}" AGENT_CHAT_KEYS_DIR="${dir}/keys" ` +
-          `AGENT_CHAT_RELAY=https://agent-chat-relay.example.com ` +
+          `AGENT_CHAT_RELAY=https://agent-chat-relay.rynn-openclaw.workers.dev ` +
           `bash ${join(import.meta.dirname, '../../scripts/setup.sh')} dt008-${Date.now().toString(36)} --no-daemon 2>&1`,
           { encoding: 'utf8', timeout: 15000 }
         );
@@ -255,7 +255,7 @@ describe('Delivery routing', () => {
       const handleDir = join(dir, 'keys', 'uc019');
       mkdirSync(handleDir, { recursive: true });
       writeFileSync(join(handleDir, 'config.json'), JSON.stringify({
-        handle: 'uc019', relay: 'https://test.example.com', unifiedChannel: true, blindReceipts: false
+        handle: 'uc019', relay: 'https://test.rynn-openclaw.workers.dev', unifiedChannel: true, blindReceipts: false
       }));
       try {
         const cfg = JSON.parse(readFileSync(join(handleDir, 'config.json'), 'utf8'));
