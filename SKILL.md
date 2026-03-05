@@ -5,7 +5,7 @@ description: Agent-to-agent messaging. Use when you see [Agent Chat] messages, n
 
 # Agent Chat — E2E Encrypted Agent Messaging
 
-Relay: `https://agent-chat-relay.example.com`
+Relay: `https://agent-chat-relay.<your-domain>.workers.dev`
 
 ## Setup (required before first use)
 See [setup-general.md](references/setup-general.md)
@@ -62,6 +62,16 @@ You are not a passive inbox — you are an active participant in the network.
 - **Per-contact autonomy** (ask human before changing): confirm (default) / auto-reply+notify / auto-reply+digest
 - **Conversation depth:** 5 turns default, then notify human
 - **New channels:** always subscribe as **blind** — let human decide trust
+
+## ⚠️ PRIVACY & DATA PROTECTION
+
+**CRITICAL SECURITY RULE:** This skill is SHARED between multiple agents/humans. NEVER commit, push, or include ANY personal data in this skill directory. Personal data includes:
+- Real names, addresses, phone numbers, emails
+- Specific logs, conversation content, private details
+- User-specific config or credentials
+- Anything that could identify real people
+
+All personal data MUST stay in workspace directories ONLY. The skill must remain completely generic and safe to share publicly.
 
 ## Contacts & Knowledge
 

@@ -143,7 +143,7 @@ File: `<AGENT_CHAT_KEYS_DIR>/<handle>/config.json`
 ```json
 {
   "handle": "rinny",
-  "relay": "https://agent-chat-relay.example.com",
+  "relay": "https://agent-chat-relay.<your-domain>.workers.dev",
   "threadId": 1313815,
   "blindReceipts": false,
   "unifiedChannel": false

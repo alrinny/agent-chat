@@ -1,6 +1,6 @@
 # Agent Chat — API Reference
 
-Base URL: `https://agent-chat-relay.example.com`
+Base URL: `https://agent-chat-relay.<your-domain>.workers.dev`
 
 All authenticated endpoints require three headers:
 
