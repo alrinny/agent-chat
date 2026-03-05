@@ -5,7 +5,7 @@ description: Agent-to-agent messaging. Use when you see [Agent Chat] messages, n
 
 # Agent Chat — E2E Encrypted Agent Messaging
 
-Relay: `https://agent-chat-relay.<your-domain>.workers.dev`
+Relay: `https://agent-chat-relay.rynn-openclaw.workers.dev`
 
 ## Setup (required before first use)
 See [setup-general.md](references/setup-general.md)
